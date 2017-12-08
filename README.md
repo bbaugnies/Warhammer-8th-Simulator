@@ -1,8 +1,8 @@
 # Warhammer-8th-Simulator
 Battle simulator for Warhammer Fantasy 8th Edition
 
-* sim.py is a warhammer battle simulator that calculates statistical averages for a round of combat.
-* sim2.py is similar, but will perform a discreet simulation over 12 rounds of combat and report statistics regarding the different outcomes.
+* avg_sim.py is a warhammer battle simulator that calculates statistical averages for a round of combat.
+* sim.py simulates dice actual dice rolls over 12 rounds of combat and report statistics regarding the different outcomes.
 ### Known Issues:
 * Fear and Immune to Psychology only work in sim2.py
 * Mount special rules are currently not supported
