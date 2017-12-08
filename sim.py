@@ -3,7 +3,7 @@ import Tkinter as tk
 
 from Tkinter import Tk, W, E, END, IntVar, StringVar, BooleanVar, Toplevel, Canvas, Scrollbar, Frame
 from ttk import Frame, Button, Style
-from ttk import Entry, Label, OptionMenu, Checkbutton
+from ttk import Entry, Label, OptionMenu, Checkbutton, Notebook
 from tkFileDialog import asksaveasfile, askopenfile
 from functools import partial
 from re import *
@@ -31,6 +31,12 @@ root = tk.Tk()
 root.wm_title("Warhammer Sim")
 canvas = tk.Canvas(root, borderwidth=0)
 frame = tk.Frame(canvas)
+ruleNotebooks = (Notebook(frame), Notebook(frame))
+unitFrames = (tk.Frame(ruleNotebooks[0]), tk.Frame(ruleNotebooks[1]))
+mountFrames = (tk.Frame(ruleNotebooks[0]), tk.Frame(ruleNotebooks[1]))
+for i in range(2):
+    ruleNotebooks[i].add(unitFrames[i], text = "Unit")    
+    ruleNotebooks[i].add(mountFrames[i], text = "Mount")
 vsb = tk.Scrollbar(root, orient="vertical", command=canvas.yview)
 canvas.configure(yscrollcommand=vsb.set)
 
@@ -45,7 +51,6 @@ statValues = ["WS", "S", "T", "W", "I", "A", "Ld", "AS", "Wa", "C"]
 nstats= len(statValues)
 names = [StringVar(frame), StringVar(frame)]
 stats=(dict(), dict())
-mountFields=["WS", "S", "I", "A"]
 mountStats = [dict(), dict()]
 #[unit][0=size, 1=rank]
 numbers=((IntVar(frame), IntVar(frame)), (IntVar(), IntVar()))
@@ -54,6 +59,8 @@ weapChoices=["Hand Weapon", "Hand Weapon and Shield", "Flail", "Great Weapon", "
 weapons = (StringVar(frame), StringVar(frame))
 baseSizeOptions=["20mm", "25mm", "40mm", "50mm"]
 baseSizes = (StringVar(frame), StringVar(frame))
+mountTypeOptions = ["Foot", "Cavalry", "Monstrous Cavalry", "Chariot", "Monster"]
+mountTypes = (StringVar(frame), StringVar(frame))
 rules=(dict(), dict())
 ruleOptions=["Always Strikes First", "Always Strikes Last", "Armour Piercing", "BSB",
     "Devastating Charge", "Has Champion", "Has Charged", "Immune Psychology", "Ignore Save",  
@@ -105,9 +112,8 @@ def populate(frame):
     nextRow+=2
     for i in range(2):
         for j in range(nstats):
-            if statValues[j] in mountFields:
-                mountStats[i][statValues[j]] = IntVar(frame)
-                Entry(frame, textvariable=mountStats[i][statValues[j]], width=2).grid(row=nextRow, column=j+i*nstats, padx=2)
+            mountStats[i][statValues[j]] = IntVar(frame)
+            Entry(frame, textvariable=mountStats[i][statValues[j]], width=2).grid(row=nextRow, column=j+i*nstats, padx=2)
     nextRow+=1
             
     
@@ -118,102 +124,111 @@ def populate(frame):
     
     Label(frame, text="Unit size:").grid(row=nextRow, sticky=W, columnspan=nstats//2)
     size1 = Entry(frame, textvariable=numbers[0][0], width= 10)
-    size1.grid(row=nextRow, column=nstats//2, columnspan=nstats//2)        
+    size1.grid(row=nextRow, column=nstats//2, columnspan=nstats//2, sticky=W)        
     Label(frame, text="Unit size:").grid(row=nextRow, column=nstats, sticky=W, columnspan=nstats//2)
     size2 = Entry(frame, textvariable=numbers[1][0], width= 10)
-    size2.grid(row=nextRow, column=nstats+nstats//2, columnspan=nstats//2)
+    size2.grid(row=nextRow, column=nstats+nstats//2, columnspan=nstats//2, sticky=W)
     nextRow+=1
     
     Label(frame, text="Rank size:").grid(row=nextRow, sticky=W, columnspan=nstats//2)
     rank1 = Entry(frame, textvariable=numbers[0][1], width= 10)
-    rank1.grid(row=nextRow, column=nstats//2, columnspan=nstats//2)
+    rank1.grid(row=nextRow, column=nstats//2, columnspan=nstats//2, sticky=W)
     Label(frame, text="Rank size:").grid(row=nextRow, column=nstats, sticky=W, columnspan=nstats//2)
     rank2 = Entry(frame, textvariable=numbers[1][1], width= 10)
-    rank2.grid(row=nextRow, column=nstats+nstats//2, columnspan=nstats//2)
+    rank2.grid(row=nextRow, column=nstats+nstats//2, columnspan=nstats//2, sticky=W)
     nextRow+=1
 	
 	
 	#Weapons & base width
-    Label(frame, text="Weapons:").grid(row=nextRow, sticky=W, columnspan=nstats)        
-    #weapChoices = sorted(weapChoices)       
+	
     for w in weapons:
         w.set(weapChoices[0])
-    Label(frame,text="Base Width:").grid(row=nextRow, column=nstats, sticky=W, columnspan=nstats)
     for b in baseSizes:
         b.set(baseSizeOptions[0])
-    nextRow+=1
-        
-    for i in range(2):  
-        apply(OptionMenu, (frame, weapons[i]) + tuple([weapChoices[0]]+weapChoices)).grid(row=nextRow, column=i*nstats, sticky = W, columnspan=nstats//2)
-        apply(OptionMenu, (frame, baseSizes[i]) + tuple([baseSizeOptions[0]]+baseSizeOptions)).grid(row=nextRow, column=nstats//2+i*nstats, sticky=W, columnspan=nstats//2)
-    nextRow+=1
+    for m in mountTypes:
+        m.set(mountTypeOptions[0])
+    mopt = tuple([mountTypeOptions[0]]+mountTypeOptions)   
+    
+    for i in range(2):
+        Label(frame, text="Weapons:").grid(row=nextRow, column= i*nstats, sticky=W, columnspan=nstats//2)
+        Label(frame,text="Base Width:").grid(row=nextRow+1, column= i*nstats, sticky=W, columnspan=nstats//2)
+        Label(frame,text="Mount Type:").grid(row=nextRow+2, column= i*nstats, sticky=W, columnspan=nstats//2)
+        apply(OptionMenu, (frame, weapons[i]) + tuple([weapChoices[0]]+weapChoices)).grid(row=nextRow, column=nstats//2+i*nstats, sticky = W, columnspan=nstats//2)
+        apply(OptionMenu, (frame, baseSizes[i]) + tuple([baseSizeOptions[0]]+baseSizeOptions)).grid(row=nextRow+1, column=nstats//2+i*nstats, sticky=W, columnspan=nstats//2)
+        OptionMenu(frame, mountTypes[i], *mopt, command = partial(checkMount, i)).grid(row=nextRow+2, column=nstats//2+i*nstats, sticky = W, columnspan=nstats//2)
+        #apply(OptionMenu, (frame, mountTypes[i]) + tuple([mountTypeOptions[0]]+mountTypeOptions)).grid(row=nextRow+2, column=nstats//2+i*nstats, sticky = W, columnspan=nstats//2)
+    nextRow+=3
     
     
     #Rules        
+    ruleNotebooks[0].grid(row = nextRow, sticky=W, columnspan = nstats)
+    ruleNotebooks[1].grid(row = nextRow, column = nstats, sticky = W, columnspan = nstats)
+    nextRow += 1
     
     
-    
-    Label(frame, text="Special Rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
-    
-    for i in range(len(ruleOptions)):
-        Label(frame, text=ruleOptions[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-        Label(frame, text=ruleOptions[i]).grid(row=nextRow+1+i, column=nstats, columnspan=nstats//3, sticky=W)
-        rules[0][ruleOptions[i]]=BooleanVar(frame)
-        rules[1][ruleOptions[i]]=BooleanVar(frame)
-        Checkbutton(frame, variable=rules[0][ruleOptions[i]]).grid(row=nextRow+1+i, column=nstats//3+1)
-        Checkbutton(frame, variable=rules[1][ruleOptions[i]]).grid(row=nextRow+1+i, column=nstats+nstats//3+1)
+    for j in range(2):
+        ruleNotebooks[j].tab(1, state = "disabled")
+        Label(unitFrames[j], text="Special Rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
         
-    nextRow+=len(ruleOptions)+1  
-    Label(frame, text="Special Rules with flat values:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
-    
-    for i in range(len(valueRules)):
-        Label(frame, text=valueRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-        Label(frame, text=valueRules[i]).grid(row=nextRow+1+i, column=nstats, columnspan=nstats//3, sticky=W)
-        rules[0][valueRules[i]]=(BooleanVar(frame),IntVar(frame))
-        rules[1][valueRules[i]]=(BooleanVar(frame),IntVar(frame))
-        Checkbutton(frame, variable=rules[0][valueRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
-        Checkbutton(frame, variable=rules[1][valueRules[i]][0]).grid(row=nextRow+1+i, column=nstats+nstats//3+1)
-        Entry(frame, textvariable=rules[0][valueRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
-        Entry(frame, textvariable=rules[1][valueRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats+nstats//3+2)
+        for i in range(len(ruleOptions)):
+            Label(unitFrames[j], text=ruleOptions[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            Label(unitFrames[j], text=ruleOptions[i]).grid(row=nextRow+1+i, column=nstats, columnspan=nstats//3, sticky=W)
+            rules[0][ruleOptions[i]]=BooleanVar(unitFrames[j])
+            rules[1][ruleOptions[i]]=BooleanVar(unitFrames[j])
+            Checkbutton(unitFrames[j], variable=rules[0][ruleOptions[i]]).grid(row=nextRow+1+i, column=nstats//3+1)
+            Checkbutton(unitFrames[j], variable=rules[1][ruleOptions[i]]).grid(row=nextRow+1+i, column=nstats+nstats//3+1)
+            
+        nextRow+=len(ruleOptions)+1  
+        Label(unitFrames[j], text="Special Rules with flat values:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
         
-    nextRow+=len(valueRules)+1  
-    Label(frame, text="Special Rules with random values:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
-    for i in range(len(diceRules)):
-        Label(frame, text=diceRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-        Label(frame, text=diceRules[i]).grid(row=nextRow+1+i, column=nstats, columnspan=nstats//3, sticky=W)
-        rules[0][diceRules[i]]=(BooleanVar(frame),IntVar(frame), IntVar(frame))
-        rules[1][diceRules[i]]=(BooleanVar(frame),IntVar(frame), IntVar(frame))
-        Checkbutton(frame, variable=rules[0][diceRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
-        Checkbutton(frame, variable=rules[1][diceRules[i]][0]).grid(row=nextRow+1+i, column=nstats+nstats//3+1)
-        Entry(frame, textvariable=rules[0][diceRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
-        Entry(frame, textvariable=rules[1][diceRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats+nstats//3+2)
-        Label(frame, text="d").grid(row=nextRow+1+i, column=nstats//3+3)
-        Label(frame, text="d").grid(row=nextRow+1+i, column=nstats+nstats//3+3)
-        OptionMenu(frame, rules[0][diceRules[i]][2], 1, 1, 3, 6).grid(row=nextRow+1+i, column=nstats//3+4)
-        OptionMenu(frame, rules[1][diceRules[i]][2], 1, 1, 3, 6).grid(row=nextRow+1+i, column=nstats+nstats//3+4)
+        for i in range(len(valueRules)):
+            Label(unitFrames[j], text=valueRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            Label(unitFrames[j], text=valueRules[i]).grid(row=nextRow+1+i, column=nstats, columnspan=nstats//3, sticky=W)
+            rules[0][valueRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]))
+            rules[1][valueRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]))
+            Checkbutton(unitFrames[j], variable=rules[0][valueRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
+            Checkbutton(unitFrames[j], variable=rules[1][valueRules[i]][0]).grid(row=nextRow+1+i, column=nstats+nstats//3+1)
+            Entry(unitFrames[j], textvariable=rules[0][valueRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
+            Entry(unitFrames[j], textvariable=rules[1][valueRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats+nstats//3+2)
+            
+        nextRow+=len(valueRules)+1  
+        Label(unitFrames[j], text="Special Rules with random values:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
+        for i in range(len(diceRules)):
+            Label(unitFrames[j], text=diceRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            Label(unitFrames[j], text=diceRules[i]).grid(row=nextRow+1+i, column=nstats, columnspan=nstats//3, sticky=W)
+            rules[0][diceRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]), IntVar(unitFrames[j]))
+            rules[1][diceRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]), IntVar(unitFrames[j]))
+            Checkbutton(unitFrames[j], variable=rules[0][diceRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
+            Checkbutton(unitFrames[j], variable=rules[1][diceRules[i]][0]).grid(row=nextRow+1+i, column=nstats+nstats//3+1)
+            Entry(unitFrames[j], textvariable=rules[0][diceRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
+            Entry(unitFrames[j], textvariable=rules[1][diceRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats+nstats//3+2)
+            Label(unitFrames[j], text="d").grid(row=nextRow+1+i, column=nstats//3+3)
+            Label(unitFrames[j], text="d").grid(row=nextRow+1+i, column=nstats+nstats//3+3)
+            OptionMenu(unitFrames[j], rules[0][diceRules[i]][2], 1, 1, 3, 6).grid(row=nextRow+1+i, column=nstats//3+4)
+            OptionMenu(unitFrames[j], rules[1][diceRules[i]][2], 1, 1, 3, 6).grid(row=nextRow+1+i, column=nstats+nstats//3+4)
+            
+        nextRow+=len(diceRules)+1
+        Label(unitFrames[j], text="Reroll rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
+        for i in range(len(rerolls)):
+            Label(unitFrames[j], text=rerolls[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            Label(unitFrames[j], text=rerolls[i]).grid(row=nextRow+1+i, column=nstats, columnspan=nstats//3, sticky=W)
+            rules[0][rerolls[i]]=(BooleanVar(unitFrames[j]), StringVar(unitFrames[j]))
+            rules[1][rerolls[i]]=(BooleanVar(unitFrames[j]), StringVar(unitFrames[j]))
+            Checkbutton(unitFrames[j], variable=rules[0][rerolls[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
+            Checkbutton(unitFrames[j], variable=rules[1][rerolls[i]][0]).grid(row=nextRow+1+i, column=nstats+nstats//3+1)
+            apply(OptionMenu, (unitFrames[j], rules[0][rerolls[i]][1]) + tuple([rerollOptions[0]]+rerollOptions)).grid(row=nextRow+1+i, column=nstats//3+2, sticky = W, columnspan=nstats//3)
+            apply(OptionMenu, (unitFrames[j], rules[1][rerolls[i]][1]) + tuple([rerollOptions[0]]+rerollOptions)).grid(row=nextRow+1+i, column=nstats+nstats//3+2, sticky = W, columnspan=nstats//3)
         
-    nextRow+=len(diceRules)+1
-    Label(frame, text="Reroll rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
-    for i in range(len(rerolls)):
-        Label(frame, text=rerolls[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-        Label(frame, text=rerolls[i]).grid(row=nextRow+1+i, column=nstats, columnspan=nstats//3, sticky=W)
-        rules[0][rerolls[i]]=(BooleanVar(frame), StringVar(frame))
-        rules[1][rerolls[i]]=(BooleanVar(frame), StringVar(frame))
-        Checkbutton(frame, variable=rules[0][rerolls[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
-        Checkbutton(frame, variable=rules[1][rerolls[i]][0]).grid(row=nextRow+1+i, column=nstats+nstats//3+1)
-        apply(OptionMenu, (frame, rules[0][rerolls[i]][1]) + tuple([rerollOptions[0]]+rerollOptions)).grid(row=nextRow+1+i, column=nstats//3+2, sticky = W, columnspan=nstats//3)
-        apply(OptionMenu, (frame, rules[1][rerolls[i]][1]) + tuple([rerollOptions[0]]+rerollOptions)).grid(row=nextRow+1+i, column=nstats+nstats//3+2, sticky = W, columnspan=nstats//3)
-    
-    
-    nextRow+=len(rerolls)+1
-    Label(frame, text="Army Specific Rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
-    for i in range(len(armyRules)):
-        Label(frame, text=armyRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-        Label(frame, text=armyRules[i]).grid(row=nextRow+1+i, column=nstats, columnspan=nstats//3, sticky=W)
-        rules[0][armyRules[i]]=BooleanVar(frame)
-        rules[1][armyRules[i]]=BooleanVar(frame)
-        Checkbutton(frame, variable=rules[0][armyRules[i]]).grid(row=nextRow+1+i, column=nstats//3+1)
-        Checkbutton(frame, variable=rules[1][armyRules[i]]).grid(row=nextRow+1+i, column=nstats+nstats//3+1)
+        
+        nextRow+=len(rerolls)+1
+        Label(unitFrames[j], text="Army Specific Rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
+        for i in range(len(armyRules)):
+            Label(unitFrames[j], text=armyRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            Label(unitFrames[j], text=armyRules[i]).grid(row=nextRow+1+i, column=nstats, columnspan=nstats//3, sticky=W)
+            rules[0][armyRules[i]]=BooleanVar(unitFrames[j])
+            rules[1][armyRules[i]]=BooleanVar(unitFrames[j])
+            Checkbutton(unitFrames[j], variable=rules[0][armyRules[i]]).grid(row=nextRow+1+i, column=nstats//3+1)
+            Checkbutton(unitFrames[j], variable=rules[1][armyRules[i]]).grid(row=nextRow+1+i, column=nstats+nstats//3+1)
         
     Label(frame, textvariable = resBox).grid(row=1, column = 2*nstats +1, columnspan=nstats, rowspan= 2* nstats)
         
@@ -233,6 +248,12 @@ def onFrameConfigure(canvas):
 
 #----------------------------------------------------------
 #Functions
+
+def checkMount(unit, m):
+    if m == "Foot":
+        ruleNotebooks[unit].tab(1, state = "disabled")
+    else:
+        ruleNotebooks[unit].tab(1, state = "normal")
 
 def fearTest(penalty, unit):
     
@@ -941,7 +962,7 @@ def saveUnit(n):
         txt += str(stats[n][i].get()) + ","
     txt += "\n"
     #mountstats
-    for i in mountFields:
+    for i in statValues:
         txt += str(mountStats[n][i].get()) + ","
     #weapon and base size
     txt += "\n" + weapons[n].get() + "\n" + baseSizes[n].get() + "\n"
