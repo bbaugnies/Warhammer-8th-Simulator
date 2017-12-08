@@ -15,6 +15,13 @@ import matplotlib.pyplot as plt
 import numpy
 
 
+'''
+Last worked on:
+making mount rules work. Those handled in attack() work, including rerolls
+others unfortunately need to be handled where they are evaluated
+getAttacks() for extra attack, random attacks, Devastating charge
+getMountStats() for bonus to hit, ASF, ASL, Armour piercing
+'''
 
 num = []
 turnOrder = []
@@ -26,7 +33,7 @@ if debug:
     itercount = 1
     roundcount = 1
 
-
+#Tkinter structures (Frames, notebooks, canvas...)
 root = tk.Tk()
 root.wm_title("Warhammer Sim")
 canvas = tk.Canvas(root, borderwidth=0)
@@ -34,9 +41,11 @@ frame = tk.Frame(canvas)
 ruleNotebooks = (Notebook(frame), Notebook(frame))
 unitFrames = (tk.Frame(ruleNotebooks[0]), tk.Frame(ruleNotebooks[1]))
 mountFrames = (tk.Frame(ruleNotebooks[0]), tk.Frame(ruleNotebooks[1]))
+draftFrames = (tk.Frame(ruleNotebooks[0]), tk.Frame(ruleNotebooks[1]))
 for i in range(2):
     ruleNotebooks[i].add(unitFrames[i], text = "Unit")    
     ruleNotebooks[i].add(mountFrames[i], text = "Mount")
+    #ruleNotebooks[i].add(draftFrames[i], text = "Draft")
 vsb = tk.Scrollbar(root, orient="vertical", command=canvas.yview)
 canvas.configure(yscrollcommand=vsb.set)
 
@@ -47,12 +56,14 @@ canvas.create_window((10,10), window=frame, anchor="nw")
 frame.bind("<Configure>", lambda event, canvas=canvas: onFrameConfigure(canvas))
 
 
+# Global variables
 statValues = ["WS", "S", "T", "W", "I", "A", "Ld", "AS", "Wa", "C"]
 nstats= len(statValues)
 names = [StringVar(frame), StringVar(frame)]
 stats=(dict(), dict())
+mountStatValues = ["WS", "S", "I", "A"]
 mountStats = [dict(), dict()]
-#[unit][0=size, 1=rank]
+#numbers format: [unit][0=size, 1=rank]
 numbers=((IntVar(frame), IntVar(frame)), (IntVar(), IntVar()))
 weapChoices=["Hand Weapon", "Hand Weapon and Shield", "Flail", "Great Weapon", "Halberd",
     "Lance", "Morning Star", "Spear (foot)", "Spear (mounted)", "Two Weapons"]
@@ -63,7 +74,7 @@ mountTypeOptions = ["Foot", "Cavalry", "Monstrous Cavalry", "Chariot", "Monster"
 mountTypes = (StringVar(frame), StringVar(frame))
 rules=(dict(), dict())
 ruleOptions=["Always Strikes First", "Always Strikes Last", "Armour Piercing", "BSB",
-    "Devastating Charge", "Has Champion", "Has Charged", "Immune Psychology", "Ignore Save",  
+    "Devastating Charge", "Has Champion", "Has Charged", "Immune to Psychology", "Ignore Save",  
     "Monstrous Support", "Mounted", "Stomp", "Stubborn", "Thunderstomp", "Unbreakable", "Unstable"]
 ruleOptions=sorted(ruleOptions)
 valueRules=["Auto-wound", "Bonus To-Hit", "Bonus To-Wound", "Extra Attack", "Fear", "Fight in Extra Ranks", "Killing Blow",
@@ -76,11 +87,23 @@ rerolls=sorted(rerolls)
 rerollOptions=["1s", "6s", "Failures", "Successes"]
 armyRules=["Cold-blooded", "Demonic Instability", "Predation", "Strength in Numbers"]
 armyRules=sorted(armyRules)
+
+#TODO ??? BSB and Fear not removed. Remove save and ward rerolls
+mountRules = (dict(), dict())
+mountRuleOptions = deepcopy(ruleOptions)
+for i in ["BSB", "Has Champion", "Has Charged", "Immune to Psychology", "Monstrous Support", "Mounted", "Stomp", "Stubborn", "Thunderstomp", "Unbreakable", "Unstable"]:
+    mountRuleOptions.remove(i)
+mountValueRules = deepcopy(valueRules)
+for i in ["Fear", "Fight in Extra Ranks", "Static CR"]:
+    mountValueRules.remove(i)
+mountDiceRules = deepcopy(diceRules)
+mountRerolls = deepcopy(rerolls)
+
 combatStatList=["To-Hit", "To-Wound", "Save", "Ward", "Priority"]
 resBox = StringVar(frame, "")
     
     
-
+# Fills all the frames
 def populate(frame):
     nextRow=0
 
@@ -97,8 +120,6 @@ def populate(frame):
     nextRow+=1
     
     # Stats
-    
-    
     for i in range(nstats):
         Label(frame, text=statValues[i]).grid(row=nextRow, column=i, padx=5)
         Label(frame, text=statValues[i]).grid(row=nextRow, column=i+nstats, padx=5)
@@ -112,35 +133,41 @@ def populate(frame):
     nextRow+=2
     for i in range(2):
         for j in range(nstats):
-            mountStats[i][statValues[j]] = IntVar(frame)
-            Entry(frame, textvariable=mountStats[i][statValues[j]], width=2).grid(row=nextRow, column=j+i*nstats, padx=2)
+            if statValues[j] in mountStatValues:
+                mountStats[i][statValues[j]] = IntVar(frame)
+                Entry(frame, textvariable=mountStats[i][statValues[j]], width=2).grid(row=nextRow, column=j+i*nstats, padx=2)
     nextRow+=1
             
     
     
     
     #Unit numbers
-    
-    
     Label(frame, text="Unit size:").grid(row=nextRow, sticky=W, columnspan=nstats//2)
     size1 = Entry(frame, textvariable=numbers[0][0], width= 10)
-    size1.grid(row=nextRow, column=nstats//2, columnspan=nstats//2, sticky=W)        
+    size1.grid(row=nextRow, column=nstats//2, columnspan=nstats//2, sticky=W)
+    size1.insert(END, "1")
+    size1.delete(0)
     Label(frame, text="Unit size:").grid(row=nextRow, column=nstats, sticky=W, columnspan=nstats//2)
     size2 = Entry(frame, textvariable=numbers[1][0], width= 10)
     size2.grid(row=nextRow, column=nstats+nstats//2, columnspan=nstats//2, sticky=W)
+    size2.insert(END, "1")
+    size2.delete(0)
     nextRow+=1
     
     Label(frame, text="Rank size:").grid(row=nextRow, sticky=W, columnspan=nstats//2)
     rank1 = Entry(frame, textvariable=numbers[0][1], width= 10)
     rank1.grid(row=nextRow, column=nstats//2, columnspan=nstats//2, sticky=W)
+    rank1.insert(END, "1")
+    rank1.delete(0)
     Label(frame, text="Rank size:").grid(row=nextRow, column=nstats, sticky=W, columnspan=nstats//2)
     rank2 = Entry(frame, textvariable=numbers[1][1], width= 10)
     rank2.grid(row=nextRow, column=nstats+nstats//2, columnspan=nstats//2, sticky=W)
+    rank2.insert(END, "1")
+    rank2.delete(0)
     nextRow+=1
 	
 	
-	#Weapons & base width
-	
+	#Weapons, Base width, and mount type
     for w in weapons:
         w.set(weapChoices[0])
     for b in baseSizes:
@@ -152,11 +179,10 @@ def populate(frame):
     for i in range(2):
         Label(frame, text="Weapons:").grid(row=nextRow, column= i*nstats, sticky=W, columnspan=nstats//2)
         Label(frame,text="Base Width:").grid(row=nextRow+1, column= i*nstats, sticky=W, columnspan=nstats//2)
-        Label(frame,text="Mount Type:").grid(row=nextRow+2, column= i*nstats, sticky=W, columnspan=nstats//2)
+        #Label(frame,text="Mount Type:").grid(row=nextRow+2, column= i*nstats, sticky=W, columnspan=nstats//2)
         apply(OptionMenu, (frame, weapons[i]) + tuple([weapChoices[0]]+weapChoices)).grid(row=nextRow, column=nstats//2+i*nstats, sticky = W, columnspan=nstats//2)
         apply(OptionMenu, (frame, baseSizes[i]) + tuple([baseSizeOptions[0]]+baseSizeOptions)).grid(row=nextRow+1, column=nstats//2+i*nstats, sticky=W, columnspan=nstats//2)
-        OptionMenu(frame, mountTypes[i], *mopt, command = partial(checkMount, i)).grid(row=nextRow+2, column=nstats//2+i*nstats, sticky = W, columnspan=nstats//2)
-        #apply(OptionMenu, (frame, mountTypes[i]) + tuple([mountTypeOptions[0]]+mountTypeOptions)).grid(row=nextRow+2, column=nstats//2+i*nstats, sticky = W, columnspan=nstats//2)
+        #OptionMenu(frame, mountTypes[i], *mopt, command = partial(checkMount, i)).grid(row=nextRow+2, column=nstats//2+i*nstats, sticky = W, columnspan=nstats//2)
     nextRow+=3
     
     
@@ -164,71 +190,110 @@ def populate(frame):
     ruleNotebooks[0].grid(row = nextRow, sticky=W, columnspan = nstats)
     ruleNotebooks[1].grid(row = nextRow, column = nstats, sticky = W, columnspan = nstats)
     nextRow += 1
+    mountTabRow = nextRow
     
     
     for j in range(2):
-        ruleNotebooks[j].tab(1, state = "disabled")
+        #ruleNotebooks[j].tab(1, state = "disabled")
         Label(unitFrames[j], text="Special Rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
+        Label(mountFrames[j], text="Special Rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
         
         for i in range(len(ruleOptions)):
             Label(unitFrames[j], text=ruleOptions[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            Label(unitFrames[j], text=ruleOptions[i]).grid(row=nextRow+1+i, column=nstats, columnspan=nstats//3, sticky=W)
-            rules[0][ruleOptions[i]]=BooleanVar(unitFrames[j])
-            rules[1][ruleOptions[i]]=BooleanVar(unitFrames[j])
-            Checkbutton(unitFrames[j], variable=rules[0][ruleOptions[i]]).grid(row=nextRow+1+i, column=nstats//3+1)
-            Checkbutton(unitFrames[j], variable=rules[1][ruleOptions[i]]).grid(row=nextRow+1+i, column=nstats+nstats//3+1)
+            rules[j][ruleOptions[i]]=BooleanVar(unitFrames[j])
+            Checkbutton(unitFrames[j], variable=rules[j][ruleOptions[i]]).grid(row=nextRow+1+i, column=nstats//3+1)
             
-        nextRow+=len(ruleOptions)+1  
+        for i in range(len(mountRuleOptions)):
+            Label(mountFrames[j], text=ruleOptions[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            mountRules[j][ruleOptions[i]]=BooleanVar(mountFrames[j])
+            Checkbutton(mountFrames[j], variable=mountRules[j][ruleOptions[i]]).grid(row=nextRow+1+i, column=nstats//3+1)
+            
+        
+        nextRow+=len(ruleOptions)+1 
+        mountTabRow+=len(mountRuleOptions)+1 
         Label(unitFrames[j], text="Special Rules with flat values:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
+        Label(mountFrames[j], text="Special Rules with flat values:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
         
         for i in range(len(valueRules)):
             Label(unitFrames[j], text=valueRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            Label(unitFrames[j], text=valueRules[i]).grid(row=nextRow+1+i, column=nstats, columnspan=nstats//3, sticky=W)
-            rules[0][valueRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]))
-            rules[1][valueRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]))
-            Checkbutton(unitFrames[j], variable=rules[0][valueRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
-            Checkbutton(unitFrames[j], variable=rules[1][valueRules[i]][0]).grid(row=nextRow+1+i, column=nstats+nstats//3+1)
-            Entry(unitFrames[j], textvariable=rules[0][valueRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
-            Entry(unitFrames[j], textvariable=rules[1][valueRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats+nstats//3+2)
+            rules[j][valueRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]))
+            Checkbutton(unitFrames[j], variable=rules[j][valueRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
+            Entry(unitFrames[j], textvariable=rules[j][valueRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)            
+        
+        for i in range(len(mountValueRules)):
+            Label(mountFrames[j], text=valueRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            mountRules[j][valueRules[i]]=(BooleanVar(mountFrames[j]),IntVar(mountFrames[j]))
+            Checkbutton(mountFrames[j], variable=mountRules[j][valueRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
+            Entry(mountFrames[j], textvariable=mountRules[j][valueRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
             
         nextRow+=len(valueRules)+1  
+        mountTabRow+=len(mountValueRules)+1 
         Label(unitFrames[j], text="Special Rules with random values:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
+        Label(mountFrames[j], text="Special Rules with random values:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
+        
         for i in range(len(diceRules)):
             Label(unitFrames[j], text=diceRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            Label(unitFrames[j], text=diceRules[i]).grid(row=nextRow+1+i, column=nstats, columnspan=nstats//3, sticky=W)
-            rules[0][diceRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]), IntVar(unitFrames[j]))
-            rules[1][diceRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]), IntVar(unitFrames[j]))
-            Checkbutton(unitFrames[j], variable=rules[0][diceRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
-            Checkbutton(unitFrames[j], variable=rules[1][diceRules[i]][0]).grid(row=nextRow+1+i, column=nstats+nstats//3+1)
-            Entry(unitFrames[j], textvariable=rules[0][diceRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
-            Entry(unitFrames[j], textvariable=rules[1][diceRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats+nstats//3+2)
+            rules[j][diceRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]), IntVar(unitFrames[j]))
+            Checkbutton(unitFrames[j], variable=rules[j][diceRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
+            Entry(unitFrames[j], textvariable=rules[j][diceRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
             Label(unitFrames[j], text="d").grid(row=nextRow+1+i, column=nstats//3+3)
-            Label(unitFrames[j], text="d").grid(row=nextRow+1+i, column=nstats+nstats//3+3)
-            OptionMenu(unitFrames[j], rules[0][diceRules[i]][2], 1, 1, 3, 6).grid(row=nextRow+1+i, column=nstats//3+4)
-            OptionMenu(unitFrames[j], rules[1][diceRules[i]][2], 1, 1, 3, 6).grid(row=nextRow+1+i, column=nstats+nstats//3+4)
+            OptionMenu(unitFrames[j], rules[j][diceRules[i]][2], 1, 1, 3, 6).grid(row=nextRow+1+i, column=nstats//3+4)
+            
+        for i in range(len(mountDiceRules)):
+            Label(mountFrames[j], text=diceRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            mountRules[j][diceRules[i]]=(BooleanVar(mountFrames[j]),IntVar(mountFrames[j]), IntVar(mountFrames[j]))
+            Checkbutton(mountFrames[j], variable=mountRules[j][diceRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
+            Entry(mountFrames[j], textvariable=mountRules[j][diceRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
+            Label(mountFrames[j], text="d").grid(row=nextRow+1+i, column=nstats//3+3)
+            OptionMenu(mountFrames[j], mountRules[j][diceRules[i]][2], 1, 1, 3, 6).grid(row=nextRow+1+i, column=nstats//3+4)
+            
             
         nextRow+=len(diceRules)+1
+        
+        #Impact hits get their own thing
+        Label(unitFrames[j], text="Impact Hits").grid(row=nextRow , column=0, columnspan=nstats//3, sticky=W)
+        rules[j]["Impact Hits"]={
+            "active": BooleanVar(unitFrames[j]),
+            "dAmount": IntVar(unitFrames[j]),
+            "dSize": IntVar(unitFrames[j]),
+            "staticHits": IntVar(unitFrames[j]),
+            "strength": IntVar(unitFrames[j])
+        }
+        Checkbutton(unitFrames[j], variable=rules[j]["Impact Hits"]["active"]).grid(row=nextRow, column=nstats//3+1)
+        Entry(unitFrames[j], textvariable=rules[j]["Impact Hits"]["dAmount"], width=2).grid(row=nextRow, column=nstats//3+2)
+        Label(unitFrames[j], text="d").grid(row=nextRow, column=nstats//3+3)
+        OptionMenu(unitFrames[j], rules[j]["Impact Hits"]["dSize"], 1, 1, 3, 6).grid(row=nextRow, column=nstats//3+4)        
+        Label(unitFrames[j], text="+").grid(row=nextRow, column=nstats//3+5)
+        Entry(unitFrames[j], textvariable=rules[j]["Impact Hits"]["staticHits"], width=2).grid(row=nextRow, column=nstats//3+6)
+        Label(unitFrames[j], text="S").grid(row=nextRow, column=nstats//3+7)
+        Entry(unitFrames[j], textvariable=rules[j]["Impact Hits"]["strength"], width=2).grid(row=nextRow, column=nstats//3+8)
+        
+        nextRow += 1
+        mountTabRow+=len(mountDiceRules)+1 
         Label(unitFrames[j], text="Reroll rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
+        Label(mountFrames[j], text="Reroll rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
+        
         for i in range(len(rerolls)):
             Label(unitFrames[j], text=rerolls[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            Label(unitFrames[j], text=rerolls[i]).grid(row=nextRow+1+i, column=nstats, columnspan=nstats//3, sticky=W)
-            rules[0][rerolls[i]]=(BooleanVar(unitFrames[j]), StringVar(unitFrames[j]))
-            rules[1][rerolls[i]]=(BooleanVar(unitFrames[j]), StringVar(unitFrames[j]))
-            Checkbutton(unitFrames[j], variable=rules[0][rerolls[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
-            Checkbutton(unitFrames[j], variable=rules[1][rerolls[i]][0]).grid(row=nextRow+1+i, column=nstats+nstats//3+1)
-            apply(OptionMenu, (unitFrames[j], rules[0][rerolls[i]][1]) + tuple([rerollOptions[0]]+rerollOptions)).grid(row=nextRow+1+i, column=nstats//3+2, sticky = W, columnspan=nstats//3)
-            apply(OptionMenu, (unitFrames[j], rules[1][rerolls[i]][1]) + tuple([rerollOptions[0]]+rerollOptions)).grid(row=nextRow+1+i, column=nstats+nstats//3+2, sticky = W, columnspan=nstats//3)
+            rules[j][rerolls[i]]=(BooleanVar(unitFrames[j]), StringVar(unitFrames[j]))
+            Checkbutton(unitFrames[j], variable=rules[j][rerolls[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
+            apply(OptionMenu, (unitFrames[j], rules[j][rerolls[i]][1]) + tuple([rerollOptions[0]]+rerollOptions)).grid(row=nextRow+1+i, column=nstats//3+2, sticky = W, columnspan=nstats//3)
+        
+        for i in range(len(mountRerolls)):
+            Label(mountFrames[j], text=rerolls[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            mountRules[j][rerolls[i]]=(BooleanVar(mountFrames[j]), StringVar(mountFrames[j]))
+            Checkbutton(mountFrames[j], variable=mountRules[j][rerolls[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
+            apply(OptionMenu, (mountFrames[j], mountRules[j][rerolls[i]][1]) + tuple([rerollOptions[0]]+rerollOptions)).grid(row=nextRow+1+i, column=nstats//3+2, sticky = W, columnspan=nstats//3)
         
         
         nextRow+=len(rerolls)+1
+        mountTabRow+=len(mountRerolls)+1 
         Label(unitFrames[j], text="Army Specific Rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
+        
         for i in range(len(armyRules)):
             Label(unitFrames[j], text=armyRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            Label(unitFrames[j], text=armyRules[i]).grid(row=nextRow+1+i, column=nstats, columnspan=nstats//3, sticky=W)
-            rules[0][armyRules[i]]=BooleanVar(unitFrames[j])
-            rules[1][armyRules[i]]=BooleanVar(unitFrames[j])
-            Checkbutton(unitFrames[j], variable=rules[0][armyRules[i]]).grid(row=nextRow+1+i, column=nstats//3+1)
-            Checkbutton(unitFrames[j], variable=rules[1][armyRules[i]]).grid(row=nextRow+1+i, column=nstats+nstats//3+1)
+            rules[j][armyRules[i]]=BooleanVar(unitFrames[j])
+            Checkbutton(unitFrames[j], variable=rules[j][armyRules[i]]).grid(row=nextRow+1+i, column=nstats//3+1)
         
     Label(frame, textvariable = resBox).grid(row=1, column = 2*nstats +1, columnspan=nstats, rowspan= 2* nstats)
         
@@ -249,14 +314,16 @@ def onFrameConfigure(canvas):
 #----------------------------------------------------------
 #Functions
 
+#Called when mount type is changed
+#enables or disables the mount tab accordingly
 def checkMount(unit, m):
     if m == "Foot":
         ruleNotebooks[unit].tab(1, state = "disabled")
     else:
         ruleNotebooks[unit].tab(1, state = "normal")
 
-def fearTest(penalty, unit):
-    
+#
+def fearTest(penalty, unit):    
     target = stats[unit]["Ld"].get()-penalty
     dice = [randint(1,6), randint(1,6), randint(1,6)]
     if rules[unit]["Cold-blooded"].get():
@@ -325,15 +392,15 @@ def getStats(turn):
         
         if rules[not i]["Ignore Save"].get(): s[i]["Save"] = 7
         else:
-            s[i]["Save"] = armor[i]
+            s[i]["Save"] = armor[i] if armor[i] != 0 else 7
             if rules[not i]["Armour Piercing"].get():    s[i]["Save"] += 1
             if strength[not i]>3 :  s[i]["Save"] += strength[not i]-3
         s[i]["Save"]= min(7, s[i]["Save"])
         s[i]["Save"] = max(2, s[i]["Save"])
         
-        s[i]["Ward"] = ward[i]
+        s[i]["Ward"] = ward[i] if ward[i] != 0 else 7
         
-        #This part is only usefull for rerolls, rest is taken care of by setTurnOrder
+    #This part is only usefull for rerolls, rest is taken care of by setTurnOrder
         s[i]["Priority"] = rules[i]["Always Strikes First"].get() - rules[i]["Always Strikes Last"].get()
     
     for i in range(1):
@@ -396,8 +463,7 @@ def getMountStats(turn):
         
         s[i]["Ward"] = ward[not i]
         
-        #pretty sure everything concerning priority here is replace by
-        # setTurnOrder
+    #This part is only usefull for rerolls, rest is taken care of by setTurnOrder
         s[i]["Priority"] = rules[i]["Always Strikes First"].get() - rules[i]["Always Strikes Last"].get()
     
     for i in range(1):
@@ -517,13 +583,11 @@ def getAttacks(unit, losses):
             attacks += rankAttacks
         available -= int(num[unit][1])
         supportRanks-=1
-    #predation handled during attack
-    #if rules[unit]["Predation"].get():    attacks = attacks * (1+1/6)
     #shortenable?
     return (int((max(0, attacks)+ (1 if attacks >=0 else 0)) if rules[unit]["Has Champion"].get() else max(0, attacks)), int(max(0, firstRank)))
    
     
-def calcRerolls(attacker, cstats, stat):
+def calcRerolls(attacker, cstats, stat, rules):
     r = randint(1, 6)
     if rules[attacker][stat][0].get():
         reroll = rules[attacker][stat][1].get()
@@ -564,27 +628,28 @@ def attack(attacker, attacks, cstats, rules):
         kb = rules[attacker]["Killing Blow"][1].get()
     pred = 0
     for i in range(attacks):
-        r = calcRerolls(attacker, cstats, "To-Hit")
-        if rules[attacker]["Predation"].get() and r == 6:
-            pred += 1
+        r = calcRerolls(attacker, cstats, "To-Hit", rules)
+        if "Predation" in rules[attacker]:
+            if rules[attacker]["Predation"].get() and r == 6:
+                pred += 1
         if r < cstats[attacker]["To-Hit"]:
             continue
         
         if r > auto_w:
             r = 0
         else:
-            r = calcRerolls(attacker, cstats, "To-Wound")
+            r = calcRerolls(attacker, cstats, "To-Wound", rules)
             if r < cstats[attacker]["To-Wound"]:
                 continue
         
         if r > kb:
             r = 0
         else:
-            r = calcRerolls(not attacker, cstats, "Save")
+            r = calcRerolls(not attacker, cstats, "Save", rules)
             if r >= cstats[not attacker]["Save"]:
                 continue
          
-        r = calcRerolls(not attacker, cstats, "Ward")
+        r = calcRerolls(not attacker, cstats, "Ward", rules)
         if r < cstats[not attacker]["Ward"]:
             if debug:
                 print "WOUND"
@@ -600,25 +665,25 @@ def attack(attacker, attacks, cstats, rules):
     #TODO make predation more elegant?
     #-----------------PREDATION--------------------------
     for i in range(pred):
-        r = calcRerolls(attacker, cstats, "To-Hit")
+        r = calcRerolls(attacker, cstats, "To-Hit", rules)
         if r < cstats[attacker]["To-Hit"]:
             continue
         
         if r > auto_w:
             r = 0
         else:
-            r = calcRerolls(attacker, cstats, "To-Wound")
+            r = calcRerolls(attacker, cstats, "To-Wound", rules)
             if r < cstats[attacker]["To-Wound"]:
                 continue
         
         if r > kb:
             r = 0
         else:
-            r = calcRerolls(not attacker, cstats, "Save")
+            r = calcRerolls(not attacker, cstats, "Save", rules)
             if r >= cstats[not attacker]["Save"]:
                 continue
          
-        r = calcRerolls(not attacker, cstats, "Ward")
+        r = calcRerolls(not attacker, cstats, "Ward", rules)
         if r < cstats[not attacker]["Ward"]:
             if debug:
                 print "WOUND"
@@ -753,7 +818,7 @@ for i in ruleOptions+armyRules:
 for i in valueRules + diceRules + rerolls:
     dummyrules[i] = [BooleanVar(frame)]
        
-        
+
 #Resolves one round of combat
 #roundn: the number of the round
 #stats: the ordered combatStats of both units
@@ -770,14 +835,22 @@ def fightRound(roundn, stats, mstats):
         resultText += "---------\n"
         for unit in order:
             att = getAttacks(unit[0], kills[not unit[0]])
+            #r = rule dictionary for dummy vs. unit (Impact hits and [thunder]Stomp)
+            #s = stat dictionary for mount vs. unit
+            #mRules = rule dictionary for mount vs. unit
             r= [dict(), dict()]
             r[unit[0]] = dummyrules
+            # need to copy these two into dummy, so stompRes can tell stomp and thunderstomp apart
             r[unit[0]]["Stomp"] = rules[unit[0]]["Stomp"]
             r[unit[0]]["Thunderstomp"] = rules[unit[0]]["Thunderstomp"]
             r[not unit[0]] = rules[not unit[0]]
             s = [dict(), dict()]
             s[unit[0]] = mstats[unit[0]]
             s[not unit[0]] = stats[not unit[0]]
+            mRules = [dict(), dict()]
+            mRules[unit[0]] = mountRules[unit[0]]
+            mRules[not unit[0]] = rules[not unit[0]]
+            
             
             #if mount
             if unit[1]:
@@ -785,14 +858,14 @@ def fightRound(roundn, stats, mstats):
                 #TODO include mount specials rules (uses dummy ad interim)
                 a = att[1]*mountStats[unit[0]]["A"].get()
                 orderAttacks[unit[0]] += a
-                k = attack(unit[0], att[1]*mountStats[unit[0]]["A"].get(), s, r)
+                k = attack(unit[0], att[1]*mountStats[unit[0]]["A"].get(), s, mRules)
                 orderKills[unit[0]] += k
                 resultText += "Mount of " + names[unit[0]].get() + " does " + str(round(a, 2)) + " attacks, for "+ str(round(k, 2)) + " wounds\n"
             #if Stomp
             elif unit[2]:
                 #uses mount stats if mounted
                 #uses dummy rules (don't affect stomp)
-                stompRes = stomp(unit[0], att[1], s if unit[1] else stats, r)
+                stompRes = stomp(unit[0], att[1], s if rules[unit[0]]["Mounted"].get() else stats, r)
                 orderAttacks[unit[0]] += stompRes[1]
                 orderKills[unit[0]] += stompRes[0]
                 resultText += "(Thunder)Stomp of " + names[unit[0]].get() + " does " + str(round(stompRes[1], 2)) + " attacks, for "+ str(round(stompRes[0], 2)) + " wounds\n"
@@ -962,7 +1035,7 @@ def saveUnit(n):
         txt += str(stats[n][i].get()) + ","
     txt += "\n"
     #mountstats
-    for i in statValues:
+    for i in mountStatValues:
         txt += str(mountStats[n][i].get()) + ","
     #weapon and base size
     txt += "\n" + weapons[n].get() + "\n" + baseSizes[n].get() + "\n"
@@ -1000,6 +1073,8 @@ def loadUnit(n):
     for i in rules[n]:
         if isinstance(rules[n][i], tuple):
             rules[n][i][0].set(False)
+        elif isinstance(rules[n][i], dict):
+            rules[n][i]["active"].set(False)
         else: rules[n][i].set(False)
         
     f = askopenfile(mode='r', initialdir=os.getcwd()+"../../")
@@ -1017,8 +1092,8 @@ def loadUnit(n):
     l = f.readline()[:-2]
     if l != "":
         s = l.split(",")
-        for i in range(len(mountFields)):
-            mountStats[n][mountFields[i]].set(s[i])
+        for i in range(len(mountStatValues)):
+            mountStats[n][mountStatValues[i]].set(s[i])
     #weapon
     l = f.readline()[:-1]
     if l != "":
