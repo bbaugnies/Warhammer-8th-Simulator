@@ -16,11 +16,7 @@ import numpy
 
 
 '''
-Last worked on:
-making mount rules work. Those handled in attack() work, including rerolls
-others unfortunately need to be handled where they are evaluated
-getAttacks() for extra attack, random attacks, Devastating charge
-getMountStats() for bonus to hit, ASF, ASL, Armour piercing
+Working on Impact hits. bit on line 493
 '''
 
 num = []
@@ -28,6 +24,7 @@ turnOrder = []
 resultText = ""
 itercount = 10000
 roundcount = 12
+#In debug mode, only do one round and activate console logging
 debug = False
 if debug:
     itercount = 1
@@ -35,7 +32,9 @@ if debug:
 
 #Tkinter structures (Frames, notebooks, canvas...)
 root = tk.Tk()
-root.wm_title("Warhammer Sim")
+title = "Warhammer Sim"
+if debug: title = "TEST MODE - " + title + " - TEST MODE"
+root.wm_title(title)
 canvas = tk.Canvas(root, borderwidth=0)
 frame = tk.Frame(canvas)
 ruleNotebooks = (Notebook(frame), Notebook(frame))
@@ -88,7 +87,6 @@ rerollOptions=["1s", "6s", "Failures", "Successes"]
 armyRules=["Cold-blooded", "Demonic Instability", "Predation", "Strength in Numbers"]
 armyRules=sorted(armyRules)
 
-#TODO ??? BSB and Fear not removed. Remove save and ward rerolls
 mountRules = (dict(), dict())
 mountRuleOptions = deepcopy(ruleOptions)
 for i in ["BSB", "Has Champion", "Has Charged", "Immune to Psychology", "Monstrous Support", "Mounted", "Stomp", "Stubborn", "Thunderstomp", "Unbreakable", "Unstable"]:
@@ -97,9 +95,12 @@ mountValueRules = deepcopy(valueRules)
 for i in ["Fear", "Fight in Extra Ranks", "Static CR"]:
     mountValueRules.remove(i)
 mountDiceRules = deepcopy(diceRules)
+for i in []:
+    mountDiceRules.remove(i)
 mountRerolls = deepcopy(rerolls)
+for i in ["Save", "Ward"]:
+    mountRerolls.remove(i)
 
-combatStatList=["To-Hit", "To-Wound", "Save", "Ward", "Priority"]
 resBox = StringVar(frame, "")
     
     
@@ -204,9 +205,9 @@ def populate(frame):
             Checkbutton(unitFrames[j], variable=rules[j][ruleOptions[i]]).grid(row=nextRow+1+i, column=nstats//3+1)
             
         for i in range(len(mountRuleOptions)):
-            Label(mountFrames[j], text=ruleOptions[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            mountRules[j][ruleOptions[i]]=BooleanVar(mountFrames[j])
-            Checkbutton(mountFrames[j], variable=mountRules[j][ruleOptions[i]]).grid(row=nextRow+1+i, column=nstats//3+1)
+            Label(mountFrames[j], text=mountRuleOptions[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            mountRules[j][mountRuleOptions[i]]=BooleanVar(mountFrames[j])
+            Checkbutton(mountFrames[j], variable=mountRules[j][mountRuleOptions[i]]).grid(row=nextRow+1+i, column=nstats//3+1)
             
         
         nextRow+=len(ruleOptions)+1 
@@ -221,10 +222,10 @@ def populate(frame):
             Entry(unitFrames[j], textvariable=rules[j][valueRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)            
         
         for i in range(len(mountValueRules)):
-            Label(mountFrames[j], text=valueRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            mountRules[j][valueRules[i]]=(BooleanVar(mountFrames[j]),IntVar(mountFrames[j]))
-            Checkbutton(mountFrames[j], variable=mountRules[j][valueRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
-            Entry(mountFrames[j], textvariable=mountRules[j][valueRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
+            Label(mountFrames[j], text=mountValueRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            mountRules[j][mountValueRules[i]]=(BooleanVar(mountFrames[j]),IntVar(mountFrames[j]))
+            Checkbutton(mountFrames[j], variable=mountRules[j][mountValueRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
+            Entry(mountFrames[j], textvariable=mountRules[j][mountValueRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
             
         nextRow+=len(valueRules)+1  
         mountTabRow+=len(mountValueRules)+1 
@@ -240,12 +241,12 @@ def populate(frame):
             OptionMenu(unitFrames[j], rules[j][diceRules[i]][2], 1, 1, 3, 6).grid(row=nextRow+1+i, column=nstats//3+4)
             
         for i in range(len(mountDiceRules)):
-            Label(mountFrames[j], text=diceRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            mountRules[j][diceRules[i]]=(BooleanVar(mountFrames[j]),IntVar(mountFrames[j]), IntVar(mountFrames[j]))
-            Checkbutton(mountFrames[j], variable=mountRules[j][diceRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
-            Entry(mountFrames[j], textvariable=mountRules[j][diceRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
+            Label(mountFrames[j], text=mountDiceRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            mountRules[j][mountDiceRules[i]]=(BooleanVar(mountFrames[j]),IntVar(mountFrames[j]), IntVar(mountFrames[j]))
+            Checkbutton(mountFrames[j], variable=mountRules[j][mountDiceRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
+            Entry(mountFrames[j], textvariable=mountRules[j][mountDiceRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
             Label(mountFrames[j], text="d").grid(row=nextRow+1+i, column=nstats//3+3)
-            OptionMenu(mountFrames[j], mountRules[j][diceRules[i]][2], 1, 1, 3, 6).grid(row=nextRow+1+i, column=nstats//3+4)
+            OptionMenu(mountFrames[j], mountRules[j][mountDiceRules[i]][2], 1, 1, 3, 6).grid(row=nextRow+1+i, column=nstats//3+4)
             
             
         nextRow+=len(diceRules)+1
@@ -280,10 +281,10 @@ def populate(frame):
             apply(OptionMenu, (unitFrames[j], rules[j][rerolls[i]][1]) + tuple([rerollOptions[0]]+rerollOptions)).grid(row=nextRow+1+i, column=nstats//3+2, sticky = W, columnspan=nstats//3)
         
         for i in range(len(mountRerolls)):
-            Label(mountFrames[j], text=rerolls[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            mountRules[j][rerolls[i]]=(BooleanVar(mountFrames[j]), StringVar(mountFrames[j]))
-            Checkbutton(mountFrames[j], variable=mountRules[j][rerolls[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
-            apply(OptionMenu, (mountFrames[j], mountRules[j][rerolls[i]][1]) + tuple([rerollOptions[0]]+rerollOptions)).grid(row=nextRow+1+i, column=nstats//3+2, sticky = W, columnspan=nstats//3)
+            Label(mountFrames[j], text=mountRerolls[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            mountRules[j][mountRerolls[i]]=(BooleanVar(mountFrames[j]), StringVar(mountFrames[j]))
+            Checkbutton(mountFrames[j], variable=mountRules[j][mountRerolls[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
+            apply(OptionMenu, (mountFrames[j], mountRules[j][mountRerolls[i]][1]) + tuple([rerollOptions[0]]+rerollOptions)).grid(row=nextRow+1+i, column=nstats//3+2, sticky = W, columnspan=nstats//3)
         
         
         nextRow+=len(rerolls)+1
@@ -316,6 +317,7 @@ def onFrameConfigure(canvas):
 
 #Called when mount type is changed
 #enables or disables the mount tab accordingly
+#Currently unused
 def checkMount(unit, m):
     if m == "Foot":
         ruleNotebooks[unit].tab(1, state = "disabled")
@@ -337,6 +339,7 @@ def fearTest(penalty, unit):
             total = sum(dice) - max(dice)
         else:
             total = dice[0] + dice[1]
+    print "Fear rolled {}, target {}".format(total, target)
     return total <= target
     
     
@@ -347,18 +350,25 @@ def fearTest(penalty, unit):
 #turn: the number of the turn
 def getStats(turn):
     s = (dict(), dict())
+    ms = (dict(), dict())
     ws = [stats[0]["WS"].get(), stats[1]["WS"].get()]
     strength = [stats[0]["S"].get(), stats[1]["S"].get()]
+    mws = (mountStats[0]["WS"].get(), mountStats[1]["WS"].get())
+    mStrength = [mountStats[0]["S"].get(), mountStats[1]["S"].get()]
     toughness = (stats[0]["T"].get(), stats[1]["T"].get())
     ini = (stats[0]["I"].get(), stats[1]["I"].get())
+    mIni = (mountStats[0]["I"].get(), mountStats[1]["I"].get())
     armor = (stats[0]["AS"].get(), stats[1]["AS"].get())
     ward = (stats[0]["Wa"].get(), stats[1]["Wa"].get())
     thb= (rules[0]["Bonus To-Hit"], rules[1]["Bonus To-Hit"])
     thp= (rules[0]["To-Hit Penalty"], rules[1]["To-Hit Penalty"])
     twb= (rules[0]["Bonus To-Wound"], rules[1]["Bonus To-Wound"])
     twp= (rules[0]["To-Wound Penalty"], rules[1]["To-Wound Penalty"])
+    mthb= (mountRules[0]["Bonus To-Hit"], mountRules[1]["Bonus To-Hit"])
+    mtwb= (mountRules[0]["Bonus To-Wound"], mountRules[1]["Bonus To-Wound"])
     weap = (weapons[0].get(), weapons[1].get())
     
+    #First loop, things where the other's stats influence targets
     for i in range(2):    
         if weap[i]== "Great Weapon":
             strength[i]+=2
@@ -369,27 +379,51 @@ def getStats(turn):
                 strength[i]+=1
             elif weap[i] == "Flail" or (weap[i] == "Lance" and rules[i]["Has Charged"].get()):
                 strength[i]+=2
-                
-                
-    # Done after weapons, because STR bonus affects armor
-    for i in range(2):
-        if rules[not i]["Fear"][0].get() and not rules[i]["Immune Psychology"].get():
+        if rules[not i]["Fear"][0].get() and not rules[i]["Immune to Psychology"].get():
             if not fearTest(rules[not i]["Fear"][1].get(), i):
                 ws[i] = 1
-        
+                mws[i] = 1
+                
+                
+    #Second loop, determine target rolls
+    for i in range(2):
+        #To Hit
         if ws[i]>ws[not i]:
             s[i]["To-Hit"]=3
         elif ws[i]*2<ws[not i]: s[i]["To-Hit"]=5
         else:   s[i]["To-Hit"]=4
         if thb[i][0].get(): s[i]["To-Hit"]-= thb[i][1].get()
         if thp[not i][0].get(): s[i]["To-Hit"]+= thp[not i][1].get()
+        s[i]["To-Hit"] = min(6, s[i]["To-Hit"])
+        s[i]["To-Hit"] = max(2, s[i]["To-Hit"])
         
+        #Mount To Hit
+        if mws[i]>ws[not i]:
+            ms[i]["To-Hit"]=3
+        elif mws[i]*2<ws[not i]: ms[i]["To-Hit"]=5
+        else:   ms[i]["To-Hit"]=4
+        if mthb[i][0].get(): ms[i]["To-Hit"]-= mthb[i][1].get()
+        if thp[not i][0].get(): ms[i]["To-Hit"]+= thp[not i][1].get()
+        ms[i]["To-Hit"] = min(6, ms[i]["To-Hit"])
+        ms[i]["To-Hit"] = max(2, ms[i]["To-Hit"])
+        
+        #To Wound
         s[i]["To-Wound"] = 4+toughness[not i]-strength[i]
+        s[i]["To-Wound"] = max(2, s[i]["To-Wound"])
         if twb[i][0].get(): s[i]["To-Wound"]-= twb[i][1].get()
         if twp[not i][0].get(): s[i]["To-Wound"]+= twp[not i][1].get()
         s[i]["To-Wound"] = min(6, s[i]["To-Wound"])
-        s[i]["To-Wound"] = max(2, s[i]["To-Wound"])
+        s[i]["To-Wound"] = max(1, s[i]["To-Wound"])
         
+        #Mount To Wound
+        ms[i]["To-Wound"] = 4+toughness[not i]-mStrength[i]
+        ms[i]["To-Wound"] = max(2, ms[i]["To-Wound"])
+        if mtwb[i][0].get(): ms[i]["To-Wound"]-= mtwb[i][1].get()
+        if twp[not i][0].get(): ms[i]["To-Wound"]+= twp[not i][1].get()
+        ms[i]["To-Wound"] = min(6, ms[i]["To-Wound"])
+        ms[i]["To-Wound"] = max(2, ms[i]["To-Wound"])
+        
+        #Armor Save
         if rules[not i]["Ignore Save"].get(): s[i]["Save"] = 7
         else:
             s[i]["Save"] = armor[i] if armor[i] != 0 else 7
@@ -398,94 +432,40 @@ def getStats(turn):
         s[i]["Save"]= min(7, s[i]["Save"])
         s[i]["Save"] = max(2, s[i]["Save"])
         
+        #Mount Armor save
+        if mountRules[not i]["Ignore Save"].get(): ms[i]["Save"] = 7
+        else:
+            ms[i]["Save"] = armor[i] if armor[i] != 0 else 7
+            if mountRules[not i]["Armour Piercing"].get():    ms[i]["Save"] += 1
+            if mStrength[not i]>3 :  ms[i]["Save"] += mStrength[not i]-3
+        ms[i]["Save"]= min(7, ms[i]["Save"])
+        ms[i]["Save"] = max(2, ms[i]["Save"])
+        
+        
         s[i]["Ward"] = ward[i] if ward[i] != 0 else 7
+        ms[i]["Ward"] = ward[i] if ward[i] != 0 else 7
         
     #This part is only usefull for rerolls, rest is taken care of by setTurnOrder
         s[i]["Priority"] = rules[i]["Always Strikes First"].get() - rules[i]["Always Strikes Last"].get()
+        ms[i]["Priority"] = mountRules[i]["Always Strikes First"].get() - mountRules[i]["Always Strikes Last"].get()
     
-    for i in range(1):
-        if s[i]["Priority"]==s[not i]["Priority"]:
-            if s[i]["Priority"]!=0 or ini[i]==ini[not i]:
-                s[i]["Priority"]=0  
-                s[not i]["Priority"]=0
-            else:
-                s[i]["Priority"]=int(ini[i]>ini[not i])*2-1
-                s[not i]["Priority"]=s[i]["Priority"]*-1
-        elif s[i]["Priority"]==1 and ini[i]>ini[not i]:
-            rules[i]["To-Hit"][0].set(True)
-            rules[i]["To-Hit"][1].set("Failures")
-            s[not i]["Priority"]=-1
-        elif s[not i]["Priority"]==1 and ini[not i]>ini[i]:
-            rules[not i]["To-Hit"][0].set(True)
-            rules[not i]["To-Hit"][1].set("Failures")
-            s[i]["Priority"]=-1
-        else:
-            s[i]["Priority"]=int(s[i]["Priority"]>s[not i]["Priority"])*2-1
-            s[not i]["Priority"] = s[i]["Priority"]*-1
-    return s
-    
-    
-def getMountStats(turn):
-    s = (dict(), dict())
-    
-    ws = (stats[0]["WS"].get(), stats[1]["WS"].get())
-    mws = (mountStats[0]["WS"].get(), mountStats[1]["WS"].get())
-    strength = [mountStats[0]["S"].get(), mountStats[1]["S"].get()]
-    toughness = (stats[0]["T"].get(), stats[1]["T"].get())
-    ini = (mountStats[0]["I"].get(), mountStats[1]["I"].get())
-    armor = (stats[0]["AS"].get(), stats[1]["AS"].get())
-    ward = (stats[0]["Wa"].get(), stats[1]["Wa"].get())
-    thp= (rules[0]["To-Hit Penalty"], rules[1]["To-Hit Penalty"])
-    twp= (rules[0]["To-Wound Penalty"], rules[1]["To-Wound Penalty"])
-    weap = (weapons[0].get(), weapons[1].get())
-    
-    for i in range(2):            
+    if s[i]["Priority"]==1 and ini[i]>=ini[not i] and s[not i]["Priority"]<1:
+        rules[i]["To-Hit"][0].set(True)
+        rules[i]["To-Hit"][1].set("Failures")
+    if s[not i]["Priority"]==1 and ini[not i]>=ini[i] and s[i]["Priority"]<1:
+        rules[not i]["To-Hit"][0].set(True)
+        rules[not i]["To-Hit"][1].set("Failures")
         
+    if ms[i]["Priority"]==1 and mIni[i]>=ini[not i] and s[not i]["Priority"]<1:
+        mountRules[i]["To-Hit"][0].set(True)
+        mountRules[i]["To-Hit"][1].set("Failures")
+    if ms[not i]["Priority"]==1 and mIni[not i]>=ini[i] and s[i]["Priority"]<1:
+        mountRules[not i]["To-Hit"][0].set(True)
+        mountRules[not i]["To-Hit"][1].set("Failures")
         
-        if mws[i]>ws[not i]:
-            s[i]["To-Hit"]=3
-        elif mws[i]*2<ws[not i]: s[i]["To-Hit"]=5
-        else:   s[i]["To-Hit"]=4
-        if thp[not i][0].get(): s[i]["To-Hit"]+= thp[not i][1].get()
-        
-        s[i]["To-Wound"] = 4+toughness[not i]-strength[i]
-        if twp[not i][0].get(): s[i]["To-Wound"]+= twp[not i][1].get()
-        s[i]["To-Wound"] = min(6, s[i]["To-Wound"])
-        s[i]["To-Wound"] = max(2, s[i]["To-Wound"])
-        
-        if rules[i]["Ignore Save"].get(): s[i]["Save"] = 7
-        else:
-            s[i]["Save"] = armor[not i]
-            if rules[i]["Armour Piercing"].get():    s[i]["Save"] += 1
-            if strength[i]>3 :  s[i]["Save"] += strength[i]-3
-        s[i]["Save"]= min(7, s[i]["Save"])
-        s[i]["Save"] = max(2, s[i]["Save"])
-        
-        s[i]["Ward"] = ward[not i]
-        
-    #This part is only usefull for rerolls, rest is taken care of by setTurnOrder
-        s[i]["Priority"] = rules[i]["Always Strikes First"].get() - rules[i]["Always Strikes Last"].get()
-    
-    for i in range(1):
-        if s[i]["Priority"]==s[not i]["Priority"]:
-            if s[i]["Priority"]!=0 or ini[i]==ini[not i]:
-                s[i]["Priority"]=0  
-                s[not i]["Priority"]=0
-            else:
-                s[i]["Priority"]=int(ini[i]>ini[not i])*2-1
-                s[not i]["Priority"]=s[i]["Priority"]*-1
-        elif s[i]["Priority"]==1 and ini[i]>ini[not i]:
-            rules[i]["To-Hit"][0].set(True)
-            rules[i]["To-Hit"][1].set("Failures")
-            s[not i]["Priority"]=-1
-        elif s[not i]["Priority"]==1 and ini[not i]>ini[i]:
-            rules[not i]["To-Hit"][0].set(True)
-            rules[not i]["To-Hit"][1].set("Failures")
-            s[i]["Priority"]=-1
-        else:
-            s[i]["Priority"]=int(s[i]["Priority"]>s[not i]["Priority"])*2-1
-            s[not i]["Priority"] = s[i]["Priority"]*-1
-    return s
+    return (s, ms)
+
+
     
     
     
@@ -503,10 +483,16 @@ def setTurnOrder():
         else:           tempOrder.append((ini, i, False, False))
             
         if rules[i]["Mounted"].get():
-            tempOrder.append((mountStats[i]["I"].get(), i, True, False))
+            ini = mountStats[i]["I"].get()
+            mod = (mountRules[i]["Always Strikes First"].get() - mountRules[i]["Always Strikes Last"].get()) * 100
+            if mod != 0:    tempOrder.append((mod, i, True, False))
+            else:           tempOrder.append((mountStats[i]["I"].get(), i, True, False))
         
         if rules[i]["Stomp"].get() or rules[i]["Thunderstomp"].get():
             tempOrder.append((-100, i, False, True))
+            
+        if rules[i]["Impact Hits"][0].get():
+            continue
     tempOrder = sorted(tempOrder, key=lambda unit: unit[0], reverse=True)
     #turnOrder contains lists of units that attack at the same time, drop the mod/ini value
     turnOrder.append([(tempOrder[0][1], tempOrder[0][2], tempOrder[0][3])])
@@ -534,15 +520,22 @@ def setTurnOrder():
 #unit: the identifier of the attacking unit (0 or 1)
 #losses: the amount of models the unit lost before attacking
 #        (only non-0 if the unit attacks second)    
-def getAttacks(unit, losses):
+def getAttacks(unit, losses, unitType):
     if num[unit][0] == 0 or num[unit][1] == 0:
-        return(0,0)
+        return 0
+    if debug: print unitType
             
-    apm = stats[unit]["A"].get()
-    randApm = 0
-    if weapons[unit].get()=="Two Weapons":      apm+=1
-    if rules[unit]["Extra Attack"][0].get():    apm+=rules[unit]["Extra Attack"][1].get()
-    if rules[unit]["Devastating Charge"].get() and rules[unit]["Has Charged"].get():    apm+=1
+    if unitType == "Unit":
+        apm = stats[unit]["A"].get()
+        if weapons[unit].get()=="Two Weapons":      apm+=1
+        if rules[unit]["Extra Attack"][0].get():    apm+=rules[unit]["Extra Attack"][1].get()
+        if rules[unit]["Devastating Charge"].get() and rules[unit]["Has Charged"].get():    apm+=1
+    elif unitType == "Mount":
+        apm = mountStats[unit]["A"].get()
+        if weapons[unit].get()=="Two Weapons":      apm+=1
+        if mountRules[unit]["Extra Attack"][0].get():    apm+=mountRules[unit]["Extra Attack"][1].get()
+        if mountRules[unit]["Devastating Charge"].get() and rules[unit]["Has Charged"].get():    apm+=1
+    else: apm = 1
         
     available = int(num[unit][0]) - losses
     available = int(ceil(available/stats[unit]["W"].get()))
@@ -557,34 +550,41 @@ def getAttacks(unit, losses):
     #maximum models in attacking unit that are in contact
     widthConstraint = ceil(availableWidth/width[0]) + (2 if availableWidth%width[0] == 0 else 1)
     
-    firstRank=min(available, int(num[unit][1]), widthConstraint)
+    firstRank=int(min(available, int(num[unit][1]), widthConstraint))
     attacks = firstRank*(apm)
-    if rules[unit]["Random Attacks"][0].get():
+    if unitType == "Unit" and rules[unit]["Random Attacks"][0].get():
         for i in range(firstRank):
             for j in range(rules[unit]["Random Attacks"][1].get()):
                 attacks += randint(1, rules[unit]["Random Attacks"][2].get())
+    if unitType == "Mount" and mountRules[unit]["Random Attacks"][0].get():
+        for i in range(firstRank):
+            for j in range(mountRules[unit]["Random Attacks"][1].get()):
+                attacks += randint(1, mountRules[unit]["Random Attacks"][2].get())
     available-=int(num[unit][1])
-    supportRanks = 1
-    if int(num[unit][1])>=10 and not rules[unit]["Monstrous Support"].get(): supportRanks+=1
-    if int(num[unit][1])>=6 and rules[unit]["Monstrous Support"].get(): supportRanks+=1
-    if weapons[unit].get()=="Spear (foot)": supportRanks+=1
-    if rules[unit]["Fight in Extra Ranks"][0].get():
-        supportRanks += rules[unit]["Fight in Extra Ranks"][1].get()
-    while supportRanks > 0 and available > 0:
-        rankAttacks = min(available, int(num[unit][1]), widthConstraint)
-        if rules[unit]["Monstrous Support"].get():            
-            attacks += min(rankAttacks * apm, rankAttacks * 3)
-            if rules[unit]["Random Attacks"][0].get():
-                for i in range(rankAttacks):
-                    for j in range(rules[unit]["Random Attacks"][1].get()):
-                        attacks += min(3-apm, randint(1, rules[unit]["Random Attacks"][2].get()))
+    
+    if unitType == "Unit":
+        supportRanks = 1
+        if int(num[unit][1])>=10 and not rules[unit]["Monstrous Support"].get(): supportRanks+=1
+        if int(num[unit][1])>=6 and rules[unit]["Monstrous Support"].get(): supportRanks+=1
+        if weapons[unit].get()=="Spear (foot)": supportRanks+=1
+        if rules[unit]["Fight in Extra Ranks"][0].get():
+            supportRanks += rules[unit]["Fight in Extra Ranks"][1].get()
+        while supportRanks > 0 and available > 0:
+            rankAttacks = int(min(available, int(num[unit][1]), widthConstraint))
+            if rules[unit]["Monstrous Support"].get():            
+                attacks += min(rankAttacks * apm, rankAttacks * 3)
+                if rules[unit]["Random Attacks"][0].get():
+                    for i in range(rankAttacks):
+                        for j in range(rules[unit]["Random Attacks"][1].get()):
+                            attacks += min(3-apm, randint(1, rules[unit]["Random Attacks"][2].get()))                
+            else:
+                attacks += rankAttacks
+            available -= int(num[unit][1])
+            supportRanks-=1
             
-        else:
-            attacks += rankAttacks
-        available -= int(num[unit][1])
-        supportRanks-=1
-    #shortenable?
-    return (int((max(0, attacks)+ (1 if attacks >=0 else 0)) if rules[unit]["Has Champion"].get() else max(0, attacks)), int(max(0, firstRank)))
+    attacks = max(0, attacks)
+    if unitType == "Unit" and rules[unit]["Has Champion"].get() and attacks != 0: attacks += 1
+    return attacks
    
     
 def calcRerolls(attacker, cstats, stat, rules):
@@ -834,7 +834,10 @@ def fightRound(roundn, stats, mstats):
         orderAttacks = [0, 0]
         resultText += "---------\n"
         for unit in order:
-            att = getAttacks(unit[0], kills[not unit[0]])
+            unitType = "Unit"
+            if unit[1]: unitType = "Mount"
+            if unit[2]: unitType = "Stomp"
+            att = getAttacks(unit[0], kills[not unit[0]], unitType)
             #r = rule dictionary for dummy vs. unit (Impact hits and [thunder]Stomp)
             #s = stat dictionary for mount vs. unit
             #mRules = rule dictionary for mount vs. unit
@@ -844,9 +847,6 @@ def fightRound(roundn, stats, mstats):
             r[unit[0]]["Stomp"] = rules[unit[0]]["Stomp"]
             r[unit[0]]["Thunderstomp"] = rules[unit[0]]["Thunderstomp"]
             r[not unit[0]] = rules[not unit[0]]
-            s = [dict(), dict()]
-            s[unit[0]] = mstats[unit[0]]
-            s[not unit[0]] = stats[not unit[0]]
             mRules = [dict(), dict()]
             mRules[unit[0]] = mountRules[unit[0]]
             mRules[not unit[0]] = rules[not unit[0]]
@@ -856,24 +856,23 @@ def fightRound(roundn, stats, mstats):
             if unit[1]:
                 #number of models * mount attacks
                 #TODO include mount specials rules (uses dummy ad interim)
-                a = att[1]*mountStats[unit[0]]["A"].get()
-                orderAttacks[unit[0]] += a
-                k = attack(unit[0], att[1]*mountStats[unit[0]]["A"].get(), s, mRules)
+                orderAttacks[unit[0]] += att
+                k = attack(unit[0], att, mstats, mRules)
                 orderKills[unit[0]] += k
-                resultText += "Mount of " + names[unit[0]].get() + " does " + str(round(a, 2)) + " attacks, for "+ str(round(k, 2)) + " wounds\n"
+                resultText += "Mount of " + names[unit[0]].get() + " does " + str(round(att, 2)) + " attacks, for "+ str(round(k, 2)) + " wounds\n"
             #if Stomp
             elif unit[2]:
                 #uses mount stats if mounted
                 #uses dummy rules (don't affect stomp)
-                stompRes = stomp(unit[0], att[1], s if rules[unit[0]]["Mounted"].get() else stats, r)
+                stompRes = stomp(unit[0], att, mstats if rules[unit[0]]["Mounted"].get() else stats, r)
                 orderAttacks[unit[0]] += stompRes[1]
                 orderKills[unit[0]] += stompRes[0]
                 resultText += "(Thunder)Stomp of " + names[unit[0]].get() + " does " + str(round(stompRes[1], 2)) + " attacks, for "+ str(round(stompRes[0], 2)) + " wounds\n"
             else:
-                orderAttacks[unit[0]] += att[0]
-                k = attack(unit[0], att[0], stats, rules)
+                orderAttacks[unit[0]] += att
+                k = attack(unit[0], att, stats, rules)
                 orderKills[unit[0]] += k
-                resultText += names[unit[0]].get() + " does " + str(round(att[0], 2)) + " attacks, for "+ str(round(k, 2)) + " wounds\n"
+                resultText += names[unit[0]].get() + " does " + str(round(att, 2)) + " attacks, for "+ str(round(k, 2)) + " wounds\n"
                 
         for i in range(2):
             kills[i]+=orderKills[i]
@@ -932,8 +931,9 @@ def sim():
             num[i][0]=num[i][0] * int(stats[i]["W"].get())
         for i in range(roundcount):
             roundReached[i] += 1
-            combatStats=getStats(i)
-            mountCombatStats=getMountStats(i)
+            s = getStats(i)
+            combatStats = s[0]
+            mountCombatStats = s[1]
             setTurnOrder()
             curNum = [num[0][0], num[1][0]]
             outcome = fightRound(i, combatStats, mountCombatStats)
@@ -1076,6 +1076,12 @@ def loadUnit(n):
         elif isinstance(rules[n][i], dict):
             rules[n][i]["active"].set(False)
         else: rules[n][i].set(False)
+    for i in mountRules[n]:
+        if isinstance(mountRules[n][i], tuple):
+            mountRules[n][i][0].set(False)
+        elif isinstance(mountRules[n][i], dict):
+            mountRules[n][i]["active"].set(False)
+        else: mountRules[n][i].set(False)
         
     f = askopenfile(mode='r', initialdir=os.getcwd()+"../../")
     #name

@@ -5,10 +5,8 @@ Battle simulator for Warhammer Fantasy 8th Edition
 * sim.py simulates dice actual dice rolls over 12 rounds of combat and report statistics regarding the different outcomes.
 ### Known Issues:
 * Fear and Immune to Psychology only work in sim2.py
-* Mount special rules are currently not supported
 * Ridden Monsters/Charriots are currently not supported
 * Flanking/Rear attacks not supported (can add static CR bonus, but can't cancel support attacks or disrupt)
-* Impact hits not supported
 * Can't have 2 different re-rolls on same stat (e.g. 1s and Successes). They sometimes cancel out but not always.
 ### Army Rules that can't be emulated:
 * Nurgle poison generates hit
