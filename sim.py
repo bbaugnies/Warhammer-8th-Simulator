@@ -17,6 +17,7 @@ import numpy
 
 '''
 Need to update unit files
+added flanking and rear charge to rule list, not implemented
 '''
 
 num = []
@@ -48,7 +49,7 @@ for i in range(2):
 vsb = tk.Scrollbar(root, orient="vertical", command=canvas.yview)
 canvas.configure(yscrollcommand=vsb.set)
 
-vsb.pack(side="right", fill="y")
+vsb.pack(side="right", fill="y")    
 canvas.pack(side="left", fill="both", expand=True)
 canvas.create_window((10,10), window=frame, anchor="nw")
 
@@ -69,23 +70,26 @@ baseSizes = (StringVar(frame), StringVar(frame))
 mountTypeOptions = ["Foot", "Cavalry", "Monstrous Cavalry", "Chariot", "Monster"]
 mountTypes = (StringVar(frame), StringVar(frame))
 rules=(dict(), dict())
-ruleOptions=["Always Strikes First", "Always Strikes Last", "Armour Piercing", "BSB",
-    "Has Champion", "Immune to Psychology", "Ignore Save",  
-    "Monstrous Support", "Mounted", "Stomp", "Stubborn", "Thunderstomp", "Unbreakable", "Unstable"]
+ruleOptions=["Always Strikes First", "Always Strikes Last", "Armour Piercing", "Bonus Attack On Wound", "BSB",
+    "Flanking", "Has Champion", "Immune to Psychology", "Ignore Save",  
+    "Monstrous Support", "Mounted","Rear Charge", "Stomp", "Stubborn", "Thunderstomp", "Unbreakable", "Unstable"]
 ruleOptions=sorted(ruleOptions)
-valueRules=["Auto-wound", "Bonus To-Hit", "Bonus To-Wound", "Extra Attack", "Fear", "Fight in Extra Ranks", "Killing Blow",
-    "Static CR", "To-Hit Penalty", "To-Wound Penalty"]
+
+valueRules=["Auto-wound", "Bonus Attack On Hit", "Bonus Hit On Hit", "Bonus To-Hit", "Bonus To-Wound", "Extra Attack", "Fear",
+    "Fight in Extra Ranks", "Killing Blow", "Static CR", "To-Hit Penalty", "To-Wound Penalty"]
 valueRules=sorted(valueRules)
+
 tempRules = ["1st Turn Attack Bonus", "1st Turn Resolution Bonus", "1st Turn Strength Bonus", "Until-Loss Attack Bonus"]
 tempRules = sorted(tempRules)
+
 diceRules=["Multiple Wounds", "Random Attacks"]
 diceRules=sorted(diceRules)
+
 rerolls=["To-Hit", "To-Wound", "Save", "Ward"]
 rerolls=sorted(rerolls)
 rerollOptions=["1s", "6s", "Failures", "Successes"]
-#TODO: replace Predation with "Bonus Attack On Hit"
-#TODO: add "Bonus Hit On Hit" (nurgle poison), "Bonus Wound On Hit", "Bonus Attack On (unsaved)Wound" (red fury)
-armyRules=["Cold-blooded", "Demonic Instability", "Predation", "Strength in Numbers"]
+
+armyRules=["Cold-blooded", "Demonic Instability", "Strength in Numbers"]
 armyRules=sorted(armyRules)
 
 mountRules = (dict(), dict())
@@ -615,8 +619,9 @@ def getAttacks(unit, losses, attackType, turn):
     if attackType == "Unit" and rules[unit]["Has Champion"].get() and attacks != 0: attacks += 1
     return attacks
    
-    
+#Return the result of a dice roll, including all reroll rules
 def calcRerolls(attacker, cstats, stat, rules):
+    #print "attacker: {}\ncstats: {}\nstat: {}\nrules[0]: {}\n\nrules[1]: {}".format(attacker, cstats, stat, rules[0].keys(), rules[1].keys())
     r = randint(1, 6)
     if rules[attacker][stat][0].get():
         reroll = rules[attacker][stat][1].get()
@@ -640,100 +645,127 @@ def calcRerolls(attacker, cstats, stat, rules):
         print "rolled {} to {}, target : {}".format(r, stat, cstats[attacker][stat])
     return r
      
-#TODO: potential improvement
-#make functions hit, wound, save, ward that call each other if succesful
-   
-#Resolves the attacks of one side, calculating the amount of kills
+
+#Dictionary used by attack() to match rules with the proper attack phase
+roll_to_rule = {
+    "hit": {
+        "lt": False,
+        "next": "wound",
+        "skip": "Auto-wound",
+        "skip-next": "save",
+        "stat": "To-Hit",
+        "gen": [
+            {
+                "rule": "Bonus Attack On Hit",
+                "value": True,
+                "type": "hit"
+            },
+            {
+                "rule": "Bonus Hit On Hit",
+                "value": True,
+                "type": "wound"
+            }
+        ]
+    },
+    "wound": {
+        "lt": False,
+        "next": "save",
+        "skip": "Killing Blow",
+        "skip-next": "ward",
+        "stat": "To-Wound",
+        "gen":[]    
+    },
+    "save": {
+        "lt": True,
+        "next": "ward",
+        "skip": None,
+        "skip-next": None,
+        "stat": "Save",
+        "gen": []    
+    },
+    "ward": {
+        "lt": True,
+        "next": None,
+        "skip": None,
+        "skip-next": None,
+        "stat": "Ward",
+        "gen": [
+            {
+                "rule": "Bonus Attack On Wound",
+                "value": False,
+                "type": "hit"
+            }
+        ]
+    }
+}
+
+#Calculates if a roll is passed or not
+#(if higher than target for Hit and Wound, if lower for Save and Ward)
+def passRoll(r, target, lt):
+    if lt: return r<target
+    else: return r>= target
+
+
+#Simulates one part of an attack
+#attacker = id of the unit attacking
+#cstats: the ordered combatStats of both units
+#rules: the unit rules to use (regular or dummy for stomp/impact...)
+#a_type: the attack phase being carried out (hit, wound, save or ward)
+#gen: if this attack can generate bonus attacks
+#
+#returns: number of wounds cause by the attack
+def attack(attacker, cstats, rules, a_type, gen=True):
+    next = None
+    result = 0
+    skip = 7
+    skip_rule = roll_to_rule[a_type]["skip"]
+    t_attacker = attacker if skip_rule != None else not attacker
+    if skip_rule != None and rules[attacker][skip_rule][0].get():
+        skip = rules[attacker][skip_rule][1].get()
+        
+    r = calcRerolls(t_attacker, cstats, roll_to_rule[a_type]["stat"], rules)
+    #CAREFUL ">=" only works because there are no skips on saves (no "lt" neede")
+    if roll_to_rule[a_type]["skip-next"] != None and r >= skip:
+        next = roll_to_rule[a_type]["skip-next"]
+    else:
+        next = roll_to_rule[a_type]["next"]
+
+    if passRoll(r, cstats[attacker][roll_to_rule[a_type]["stat"]], roll_to_rule[a_type]["lt"]):
+        if next != None:
+            result += attack(attacker, cstats, rules, next, gen)
+        elif a_type == "ward":
+            if rules[attacker]["Multiple Wounds"][0].get():
+                dmg = 0
+                for i in range(rules[attacker]["Multiple Wounds"][1].get()):
+                    dmg += randint(1, rules[attacker]["Multiple Wounds"][2].get())
+                result += min(dmg, stats[not attacker]["W"].get())
+            else:
+                result += 1
+                
+    for g in roll_to_rule[a_type]["gen"]:
+    #CAREFUL ">=" only works because the only comparisons are on hit (no "lt" needed)
+        if gen and ((g["value"] and rules[attacker][g["rule"]][0].get() and r >= rules[attacker][g["rule"]][1].get()) or (not g["value"] and rules[attacker][g["rule"]].get() and result > 0)):
+            if debug:
+                print "Bonus attack:"
+            result += attack(attacker, cstats, rules, g["type"], False)                
+    return result
+
+
+#Resolves the attacks of one side, calculating the amount of wounds
 #attacker: the identifier of the attacking side (0 or 1)
 #attacks: the number of attacks carried out
 #cstats: the ordered combatStats of both units
 #rules: the unit rules to use (regular or dummy for stomp/impact...)
-def attack(attacker, attacks, cstats, rules):
+#
+#returns: the number of wounds caused
+def getWounds(attacker, attacks, cstats, rules):
     if debug:
         print "{} attacks by {}: {}".format(attacks, attacker, cstats)
-    wounds = 0
-    auto_w = 7
-    if rules[attacker]["Auto-wound"][0].get():
-        auto_w = rules[attacker]["Auto-wound"][1].get()
-    kb = 7
-    if rules[attacker]["Killing Blow"][0].get():
-        kb = rules[attacker]["Killing Blow"][1].get()
-    pred = 0
+    w = 0
     for i in range(attacks):
-        r = calcRerolls(attacker, cstats, "To-Hit", rules)
-        #pretty sure this is obsolete, but if predation is acting up, put it back
-        #if "Predation" in rules[attacker]:
-        if rules[attacker]["Predation"].get() and r == 6:
-            pred += 1
-        if r < cstats[attacker]["To-Hit"]:
-            continue
-        
-        if r > auto_w:
-            r = 0
-        else:
-            r = calcRerolls(attacker, cstats, "To-Wound", rules)
-            if r < cstats[attacker]["To-Wound"]:
-                continue
-        
-        if r > kb:
-            r = 0
-        else:
-            r = calcRerolls(not attacker, cstats, "Save", rules)
-            if r >= cstats[not attacker]["Save"]:
-                continue
-         
-        r = calcRerolls(not attacker, cstats, "Ward", rules)
-        if r < cstats[not attacker]["Ward"]:
-            if debug:
-                print "WOUND"
-            if rules[attacker]["Multiple Wounds"][0].get():
-                dmg = 0
-                for i in range(rules[attacker]["Multiple Wounds"][1].get()):
-                    dmg += randint(1, rules[attacker]["Multiple Wounds"][2].get())
-                wounds += min(dmg, stats[not attacker]["W"].get())
-            else:
-                wounds += 1
-            if debug:
-                print wounds
-    #TODO make predation more elegant?
-    #see improvement option for attack()
-    #-----------------PREDATION--------------------------
-    for i in range(pred):
-        r = calcRerolls(attacker, cstats, "To-Hit", rules)
-        if r < cstats[attacker]["To-Hit"]:
-            continue
-        
-        if r > auto_w:
-            r = 0
-        else:
-            r = calcRerolls(attacker, cstats, "To-Wound", rules)
-            if r < cstats[attacker]["To-Wound"]:
-                continue
-        
-        if r > kb:
-            r = 0
-        else:
-            r = calcRerolls(not attacker, cstats, "Save", rules)
-            if r >= cstats[not attacker]["Save"]:
-                continue
-         
-        r = calcRerolls(not attacker, cstats, "Ward", rules)
-        if r < cstats[not attacker]["Ward"]:
-            if debug:
-                print "WOUND"
-            if rules[attacker]["Multiple Wounds"][0].get():
-                dmg = 0
-                for i in range(rules[attacker]["Multiple Wounds"][1].get()):
-                    dmg += randint(1, rules[attacker]["Multiple Wounds"][2].get())
-                wounds += min(dmg, stats[not attacker]["W"].get())
-            else:
-                wounds += 1
-            if debug:
-                print wounds
-    #-----------------PREDATION--------------------------
-    
-        
-    return wounds
+        w += attack(attacker, cstats, rules, "hit")
+    return w
+
     
     
 #Calculates the combat resolution
@@ -858,12 +890,12 @@ def fightRound(roundn, cstats, mstats):
             orderAttacks[unit[0]] += att
             k = 0
             if unit[1] == "Unit":
-                k = attack(unit[0], att, cstats, rules)
+                k = getWounds(unit[0], att, cstats, rules)
             elif unit[1] == "Mount":
                 mRules = [dict(), dict()]
                 mRules[unit[0]] = mountRules[unit[0]]
                 mRules[not unit[0]] = rules[not unit[0]]
-                k = attack(unit[0], att, mstats, mRules)
+                k = getWounds(unit[0], att, mstats, mRules)
                 
             #TODO refactor this to have getStats used here
             elif unit[1] == "Impact Hits":
@@ -874,7 +906,7 @@ def fightRound(roundn, cstats, mstats):
                 s[unit[0]]["To-Wound"] = toWound(unit[0], rules[unit[0]]["Impact Hits"]["strength"].get(), stats[not unit[0]]["T"].get(), r)
                 #for save, unit[0] is considered "defender" => use r so no armor piercing/ignore save
                 s[not unit[0]]["Save"] = saveTarget(not unit[0], stats[not unit[0]]["AS"].get(), rules[unit[0]]["Impact Hits"]["strength"].get(), r)
-                k = attack(unit[0], att, s, r)
+                k = getWounds(unit[0], att, s, r)
             #Stomp and Thunderstomp
             else:
                 #same as impact hits, but using S (unit or mound) instead of special strength
@@ -885,7 +917,7 @@ def fightRound(roundn, cstats, mstats):
                 s[unit[0]]["To-Wound"] = toWound(unit[0], strength, stats[not unit[0]]["T"].get(), r)
                 #for save, unit[0] is considered "defender" => use r so no armor piercing/ignore save
                 s[not unit[0]]["Save"] = saveTarget(not unit[0], stats[not unit[0]]["AS"].get(), strength, r)
-                k = attack(unit[0], att, s, r)
+                k = getWounds(unit[0], att, s, r)
                 
             orderKills[unit[0]] += k
             resultText +=   ((unit[1]+ " of ") if unit[1] != "Unit" else "")
