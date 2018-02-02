@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import numpy
 
 
+
 '''
 Need to update unit files
 added flanking and rear charge to rule list, not implemented
@@ -79,7 +80,7 @@ valueRules=["Auto-wound", "Bonus Attack On Hit", "Bonus Hit On Hit", "Bonus To-H
     "Fight in Extra Ranks", "Killing Blow", "Static CR", "To-Hit Penalty", "To-Wound Penalty"]
 valueRules=sorted(valueRules)
 
-tempRules = ["1st Turn Attack Bonus", "1st Turn Resolution Bonus", "1st Turn Strength Bonus", "Until-Loss Attack Bonus"]
+tempRules = ["1st Turn Attack Bonus", "1st Turn Rerolls", "1st Turn Resolution Bonus", "1st Turn Strength Bonus", "Until-Loss Attack Bonus"]
 tempRules = sorted(tempRules)
 
 diceRules=["Multiple Wounds", "Random Attacks"]
@@ -702,6 +703,7 @@ roll_to_rule = {
 #Calculates if a roll is passed or not
 #(if higher than target for Hit and Wound, if lower for Save and Ward)
 def passRoll(r, target, lt):
+    #print "passRoll: {}, {}, {}".format(r, target, lt)
     if lt: return r<target
     else: return r>= target
 
@@ -724,13 +726,15 @@ def attack(attacker, cstats, rules, a_type, gen=True):
         skip = rules[attacker][skip_rule][1].get()
         
     r = calcRerolls(t_attacker, cstats, roll_to_rule[a_type]["stat"], rules)
-    #CAREFUL ">=" only works because there are no skips on saves (no "lt" neede")
+    #CAREFUL ">=" only works because there are no skips on saves (no "lt" needed")
     if roll_to_rule[a_type]["skip-next"] != None and r >= skip:
         next = roll_to_rule[a_type]["skip-next"]
     else:
         next = roll_to_rule[a_type]["next"]
 
-    if passRoll(r, cstats[attacker][roll_to_rule[a_type]["stat"]], roll_to_rule[a_type]["lt"]):
+    rollLT = roll_to_rule[a_type]["lt"]
+    target = cstats[not attacker][roll_to_rule[a_type]["stat"]] if rollLT else cstats[attacker][roll_to_rule[a_type]["stat"]]
+    if passRoll(r, target, rollLT):
         if next != None:
             result += attack(attacker, cstats, rules, next, gen)
         elif a_type == "ward":
@@ -977,6 +981,8 @@ def sim():
     results = [wincounter(), wincounter(), wincounter()]
     alivePerRound[0][0] = numbers[0][0].get() * stats[0]["W"].get()
     alivePerRound[1][0] = numbers[1][0].get() * stats[1]["W"].get()
+    
+    realRerolls = [{"unit": {}, "mount": {}}, {"unit": {}, "mount": {}}]
     for j in range(itercount):
         #copy number of units for running counts
         num=[[numbers[0][0].get(), numbers[0][1].get()], [numbers[1][0].get(), numbers[1][1].get()]]
@@ -986,7 +992,22 @@ def sim():
             #reset frenzy-type bonus
             rules[i]["Until-Loss Attack Bonus"][2].set(True)
             mountRules[i]["Until-Loss Attack Bonus"][2].set(True)
+            for r in mountRerolls:
+                realRerolls[i]["unit"][r] = (rules[i][r][0].get(), rules[i][r][1].get())
+                realRerolls[i]["mount"][r] = (mountRules[i][r][0].get(), mountRules[i][r][1].get())
+                if rules[i]["1st Turn Rerolls"][0].get():
+                    rules[i]["To-Hit"][0].set(True)
+                    rules[i]["To-Hit"][1].set("Failures")
+                if mountRules[i]["1st Turn Rerolls"][0].get():
+                    mountRules[i]["To-Hit"][0].set(True)
+                    mountRules[i]["To-Hit"][1].set("Failures")
         for i in range(roundcount):
+            if i == 1:
+                for j in range(2):
+                    rules[j]["To-Hit"][0].set(realRerolls[j]["unit"]["To-Hit"][0])
+                    rules[j]["To-Hit"][1].set(realRerolls[j]["unit"]["To-Hit"][1])
+                    mountRules[j]["To-Hit"][0].set(realRerolls[j]["mount"]["To-Hit"][0])                  
+                    mountRules[j]["To-Hit"][1].set(realRerolls[j]["mount"]["To-Hit"][1])
             roundReached[i] += 1
             s = getStats(i)
             combatStats = s[0]
@@ -1022,8 +1043,14 @@ def sim():
             results[2].wins += 1
             results[2].rounds += i+1
             results[2].u_left += num[0][0]
-            results[2].e_left += num[1][0]  
+            results[2].e_left += num[1][0]
+        for j in range(2):
+            rules[j]["To-Hit"][0].set(realRerolls[j]["unit"]["To-Hit"][0])
+            rules[j]["To-Hit"][1].set(realRerolls[j]["unit"]["To-Hit"][1])
+            mountRules[j]["To-Hit"][0].set(realRerolls[j]["mount"]["To-Hit"][0])                  
+            mountRules[j]["To-Hit"][1].set(realRerolls[j]["mount"]["To-Hit"][1])
             
+    
             
     #set output string
     resultText += "{} Wins:\n".format(names[0].get())
