@@ -4,6 +4,17 @@ Battle simulator for Warhammer Fantasy 8th Edition
 * avg_sim.py is a warhammer battle simulator that calculates statistical averages for a round of combat.
 * sim.py simulates actual dice rolls over 12 rounds of combat and reports statistics regarding the different outcomes.
 
+### Prerequisits
+Install the latest version of Python2.7, found here: https://www.python.org/downloads/
+Clone/Download the simulator
+Open a Powershell terminal
+Type the following lines:
+'''
+python -mpip install -U pip
+python -mpip install -U matplotlib
+'''
+You should now be able to open the simulator (open with -> python)
+
 ### Disclaimer
 Updates regularly break saved unit files, and the files are not compatible between the two simulators.
 ### Known Issues:
