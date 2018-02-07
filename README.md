@@ -15,8 +15,6 @@ python -mpip install -U matplotlib
 ```
 * You should now be able to open the simulator (open with -> python)
 
-### Disclaimer
-Updates regularly break saved unit files, and the files are not compatible between the two simulators.
 ### Known Issues:
 * Fear and Immune to Psychology only work in sim.py
 * Characters on Monsters/Charriots are currently not supported
