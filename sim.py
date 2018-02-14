@@ -10,6 +10,9 @@ from re import *
 from copy import *
 from math import *
 from random import randint
+
+import ToolTip
+
 import os
 import matplotlib.pyplot as plt
 import numpy
@@ -21,6 +24,7 @@ Need to update unit files
 added flanking and rear charge to rule list, not implemented
 '''
 
+
 num = []
 turnOrder = []
 resultText = ""
@@ -31,13 +35,24 @@ debug = False
 if debug:
     itercount = 1
     roundcount = 2
+    
+    
+def _on_mousewheel(event):
+    if event.delta < 0 or event.num == 4:
+        canvas.yview_scroll(-1, "units")
+    else:
+        canvas.yview_scroll(1, "units")
 
 #Tkinter structures (Frames, notebooks, canvas...)
 root = tk.Tk()
+
 title = "Warhammer Sim"
 if debug: title = "TEST MODE - " + title + " - TEST MODE"
 root.wm_title(title)
 canvas = tk.Canvas(root, borderwidth=0)
+canvas.bind_all("MouseWheel", _on_mousewheel)
+canvas.bind_all("<Button-4>", _on_mousewheel)
+canvas.bind_all("<Button-5>", _on_mousewheel)
 frame = tk.Frame(canvas)
 ruleNotebooks = (Notebook(frame), Notebook(frame))
 unitFrames = (tk.Frame(ruleNotebooks[0]), tk.Frame(ruleNotebooks[1]))
@@ -46,7 +61,6 @@ draftFrames = (tk.Frame(ruleNotebooks[0]), tk.Frame(ruleNotebooks[1]))
 for i in range(2):
     ruleNotebooks[i].add(unitFrames[i], text = "Unit")    
     ruleNotebooks[i].add(mountFrames[i], text = "Mount")
-#TODO: make mousewheel-scrollable
 vsb = tk.Scrollbar(root, orient="vertical", command=canvas.yview)
 canvas.configure(yscrollcommand=vsb.set)
 
@@ -95,7 +109,7 @@ armyRules=sorted(armyRules)
 
 mountRules = (dict(), dict())
 mountRuleOptions = deepcopy(ruleOptions)
-for i in ["BSB", "Has Champion", "Immune to Psychology", "Monstrous Support", "Mounted", "Stomp", "Stubborn", "Thunderstomp", "Unbreakable", "Unstable"]:
+for i in ["BSB", "Flanking", "Has Champion", "Immune to Psychology", "Monstrous Support", "Mounted", "Rear Charge", "Stomp", "Stubborn", "Thunderstomp", "Unbreakable", "Unstable"]:
     mountRuleOptions.remove(i)
 mountValueRules = deepcopy(valueRules)
 for i in ["Fear", "Fight in Extra Ranks", "Static CR"]:
@@ -111,7 +125,10 @@ for i in ["Save", "Ward"]:
     mountRerolls.remove(i)
 
 resBox = StringVar(frame, "")
-    
+
+
+ruleLabels = [{}, {}]
+mountRuleLabels = [{}, {}]
     
 # Fills all the frames
 def populate(frame):
@@ -137,6 +154,7 @@ def populate(frame):
         stats[1][statValues[i]] = IntVar(frame)
         Entry(frame, textvariable=stats[0][statValues[i]], width=2).grid(row=nextRow+1, column=i, padx=2)
         
+    #Done in two loops so that using "Tab" stays on the same unit
     for i in range(nstats):
         Entry(frame, textvariable=stats[1][statValues[i]], width=2).grid(row=nextRow+1, column=i+nstats, padx=2)
         
@@ -202,12 +220,15 @@ def populate(frame):
         Label(mountFrames[j], text="Special Rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
         
         for i in range(len(ruleOptions)):
-            Label(unitFrames[j], text=ruleOptions[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            ruleLabels[j][ruleOptions[i]] = Label(unitFrames[j], text=ruleOptions[i])
+            ruleLabels[j][ruleOptions[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            #Label(unitFrames[j], text=ruleOptions[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             rules[j][ruleOptions[i]]=BooleanVar(unitFrames[j])
             Checkbutton(unitFrames[j], variable=rules[j][ruleOptions[i]], command = partial(checkMount, j, ruleOptions[i])).grid(row=nextRow+1+i, column=nstats//3+1)
-            
         for i in range(len(mountRuleOptions)):
-            Label(mountFrames[j], text=mountRuleOptions[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            mountRuleLabels[j][mountRuleOptions[i]] = Label(mountFrames[j], text=mountRuleOptions[i])
+            mountRuleLabels[j][mountRuleOptions[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            #Label(mountFrames[j], text=mountRuleOptions[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             mountRules[j][mountRuleOptions[i]]=BooleanVar(mountFrames[j])
             Checkbutton(mountFrames[j], variable=mountRules[j][mountRuleOptions[i]]).grid(row=nextRow+1+i, column=nstats//3+1)
 
@@ -217,13 +238,17 @@ def populate(frame):
         Label(mountFrames[j], text="Special Rules with flat values:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
         
         for i in range(len(valueRules)):
-            Label(unitFrames[j], text=valueRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            ruleLabels[j][valueRules[i]] = Label(unitFrames[j], text=valueRules[i])
+            ruleLabels[j][valueRules[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            #Label(unitFrames[j], text=valueRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             rules[j][valueRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]))
             Checkbutton(unitFrames[j], variable=rules[j][valueRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
             Entry(unitFrames[j], textvariable=rules[j][valueRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)            
         
         for i in range(len(mountValueRules)):
-            Label(mountFrames[j], text=mountValueRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            mountRuleLabels[j][mountValueRules[i]] = Label(mountFrames[j], text=mountValueRules[i])
+            mountRuleLabels[j][mountValueRules[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            #Label(mountFrames[j], text=mountValueRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             mountRules[j][mountValueRules[i]]=(BooleanVar(mountFrames[j]),IntVar(mountFrames[j]))
             Checkbutton(mountFrames[j], variable=mountRules[j][mountValueRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
             Entry(mountFrames[j], textvariable=mountRules[j][mountValueRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
@@ -235,13 +260,17 @@ def populate(frame):
         Label(mountFrames[j], text="Temporary Rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
         
         for i in range(len(tempRules)):
-            Label(unitFrames[j], text=tempRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            ruleLabels[j][tempRules[i]] = Label(unitFrames[j], text=tempRules[i])
+            ruleLabels[j][tempRules[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            #Label(unitFrames[j], text=tempRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             rules[j][tempRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]), BooleanVar(unitFrames[j]))
             Checkbutton(unitFrames[j], variable=rules[j][tempRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
             Entry(unitFrames[j], textvariable=rules[j][tempRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)            
         
         for i in range(len(mountTempRules)):
-            Label(mountFrames[j], text=mountTempRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            mountRuleLabels[j][mountTempRules[i]] = Label(mountFrames[j], text=mountTempRules[i])
+            mountRuleLabels[j][mountTempRules[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            #Label(mountFrames[j], text=mountTempRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             mountRules[j][mountTempRules[i]]=(BooleanVar(mountFrames[j]),IntVar(mountFrames[j]), BooleanVar(unitFrames[j]))
             Checkbutton(mountFrames[j], variable=mountRules[j][mountTempRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
             Entry(mountFrames[j], textvariable=mountRules[j][mountTempRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
@@ -252,7 +281,9 @@ def populate(frame):
         Label(mountFrames[j], text="Special Rules with random values:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
         
         for i in range(len(diceRules)):
-            Label(unitFrames[j], text=diceRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            ruleLabels[j][diceRules[i]] = Label(unitFrames[j], text=diceRules[i])
+            ruleLabels[j][diceRules[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            #Label(unitFrames[j], text=diceRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             rules[j][diceRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]), IntVar(unitFrames[j]))
             Checkbutton(unitFrames[j], variable=rules[j][diceRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
             Entry(unitFrames[j], textvariable=rules[j][diceRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
@@ -260,7 +291,9 @@ def populate(frame):
             OptionMenu(unitFrames[j], rules[j][diceRules[i]][2], 1, 1, 3, 6).grid(row=nextRow+1+i, column=nstats//3+4)
             
         for i in range(len(mountDiceRules)):
-            Label(mountFrames[j], text=mountDiceRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            mountRuleLabels[j][mountDiceRules[i]] = Label(mountFrames[j], text=mountDiceRules[i])
+            mountRuleLabels[j][mountDiceRules[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            #Label(mountFrames[j], text=mountDiceRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             mountRules[j][mountDiceRules[i]]=(BooleanVar(mountFrames[j]),IntVar(mountFrames[j]), IntVar(mountFrames[j]))
             Checkbutton(mountFrames[j], variable=mountRules[j][mountDiceRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
             Entry(mountFrames[j], textvariable=mountRules[j][mountDiceRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
@@ -271,7 +304,9 @@ def populate(frame):
         nextRow+=len(diceRules)+1
         
         #Impact hits get their own thing
-        Label(unitFrames[j], text="Impact Hits").grid(row=nextRow , column=0, columnspan=nstats//3, sticky=W)
+        ruleLabels[j]["Impact Hits"] = Label(unitFrames[j], text="Impact Hits")
+        ruleLabels[j]["Impact Hits"].grid(row=nextRow, column=0, columnspan=nstats//3, sticky=W)
+        #Label(unitFrames[j], text="Impact Hits").grid(row=nextRow , column=0, columnspan=nstats//3, sticky=W)
         rules[j]["Impact Hits"]={
             "active": BooleanVar(unitFrames[j]),
             "dAmount": IntVar(unitFrames[j]),
@@ -294,13 +329,17 @@ def populate(frame):
         Label(mountFrames[j], text="Reroll rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
         
         for i in range(len(rerolls)):
-            Label(unitFrames[j], text=rerolls[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            ruleLabels[j][rerolls[i]] = Label(unitFrames[j], text=rerolls[i])
+            ruleLabels[j][rerolls[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            #Label(unitFrames[j], text=rerolls[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             rules[j][rerolls[i]]=(BooleanVar(unitFrames[j]), StringVar(unitFrames[j]))
             Checkbutton(unitFrames[j], variable=rules[j][rerolls[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
             apply(OptionMenu, (unitFrames[j], rules[j][rerolls[i]][1]) + tuple([rerollOptions[0]]+rerollOptions)).grid(row=nextRow+1+i, column=nstats//3+2, sticky = W, columnspan=nstats//3)
         
         for i in range(len(mountRerolls)):
-            Label(mountFrames[j], text=mountRerolls[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            mountRuleLabels[j][mountRerolls[i]] = Label(mountFrames[j], text=mountRerolls[i])
+            mountRuleLabels[j][mountRerolls[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            #Label(mountFrames[j], text=mountRerolls[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             mountRules[j][mountRerolls[i]]=(BooleanVar(mountFrames[j]), StringVar(mountFrames[j]))
             Checkbutton(mountFrames[j], variable=mountRules[j][mountRerolls[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
             apply(OptionMenu, (mountFrames[j], mountRules[j][mountRerolls[i]][1]) + tuple([rerollOptions[0]]+rerollOptions)).grid(row=nextRow+1+i, column=nstats//3+2, sticky = W, columnspan=nstats//3)
@@ -311,7 +350,9 @@ def populate(frame):
         Label(unitFrames[j], text="Army Specific Rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
         
         for i in range(len(armyRules)):
-            Label(unitFrames[j], text=armyRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            ruleLabels[j][armyRules[i]] = Label(unitFrames[j], text=armyRules[i])
+            ruleLabels[j][armyRules[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
+            #Label(unitFrames[j], text=armyRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             rules[j][armyRules[i]]=BooleanVar(unitFrames[j])
             Checkbutton(unitFrames[j], variable=rules[j][armyRules[i]]).grid(row=nextRow+1+i, column=nstats//3+1)
         
@@ -327,6 +368,7 @@ def populate(frame):
 def onFrameConfigure(canvas):
     '''Reset the scroll region to encompass the inner frame'''
     canvas.configure(scrollregion=canvas.bbox("all"))
+    
     
     
     
@@ -1323,6 +1365,30 @@ def loadUnit(n):
     
 def main():
     populate(frame)
+    #---------------------------------------------------
+    #ToolTips    
+    for i in range(2):
+        ToolTip.createToolTip(ruleLabels[i]["BSB"], "Only affects rerolls, add static CR if needed")
+        ToolTip.createToolTip(ruleLabels[i]["Bonus Attack On Wound"], "E.g. Red Fury")
+        ToolTip.createToolTip(ruleLabels[i]["Flanking"], "Not yet implemented")
+        ToolTip.createToolTip(ruleLabels[i]["Has Champion"], "Adds one attack")
+        ToolTip.createToolTip(ruleLabels[i]["Immune to Psychology"], "Only blocks Fear")
+        ToolTip.createToolTip(ruleLabels[i]["Monstrous Support"], "Allows up to three support attacks per model")
+        ToolTip.createToolTip(ruleLabels[i]["Mounted"], "Unlocks Mount tab and enables use of the mount profile\nMounts stats are ignored without this")
+        ToolTip.createToolTip(ruleLabels[i]["Rear Charge"], "Not yet implemented")
+        ToolTip.createToolTip(ruleLabels[i]["Stomp"], "Uses Mount strength if Mounted")
+        ToolTip.createToolTip(ruleLabels[i]["Auto-wound"], "Emulates Poison. Value is the dice roll required to proc (usually 6)")
+        ToolTip.createToolTip(ruleLabels[i]["Bonus Attack On Hit"], "E.g. Predation. Value is the dice roll required to proc")
+        ToolTip.createToolTip(ruleLabels[i]["Bonus Hit On Hit"], "E.g. Nurgle Locus of Contagion. Value is the dice roll required to proc")
+        ToolTip.createToolTip(ruleLabels[i]["Fear"], "Value is modifier applied to Fear test (usually 0)")
+        ToolTip.createToolTip(ruleLabels[i]["Killing Blow"], "Value is dice roll required to proc (usually 6)")
+        ToolTip.createToolTip(ruleLabels[i]["Static CR"], "CR Bonus applied to every round e.g. Banner or BSB")
+        ToolTip.createToolTip(ruleLabels[i]["To-Hit Penalty"], "Penalty applied when trying to hit this unit")
+        ToolTip.createToolTip(ruleLabels[i]["To-Wound Penatly"], "Penalty applied when trying to wound this unti")
+        ToolTip.createToolTip(ruleLabels[i]["1st Turn Rerolls"], "E.g. Hatred. Value is not used")
+        ToolTip.createToolTip(ruleLabels[i]["Until-Loss Attack Bonus"], "E.g. Frenzy")
+        ToolTip.createToolTip(ruleLabels[i]["Impact Hits"], "Number of dice, size of dice, static attacks (e.g. scythes), and strength of attacks")
+    #---------------------------------------------------
     root.mainloop()
     
 if __name__ == "__main__":
