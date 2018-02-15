@@ -85,12 +85,12 @@ baseSizes = (StringVar(frame), StringVar(frame))
 mountTypeOptions = ["Foot", "Cavalry", "Monstrous Cavalry", "Chariot", "Monster"]
 mountTypes = (StringVar(frame), StringVar(frame))
 rules=(dict(), dict())
-ruleOptions=["Always Strikes First", "Always Strikes Last", "Armour Piercing", "Bonus Attack On Wound", "BSB",
+ruleOptions=["Always Strikes First", "Always Strikes Last", "Bonus Attack On Wound", "BSB",
     "Flanking", "Has Champion", "Immune to Psychology", "Ignore Save",  
     "Monstrous Support", "Mounted","Rear Charge", "Stomp", "Stubborn", "Thunderstomp", "Unbreakable", "Unstable"]
 ruleOptions=sorted(ruleOptions)
 
-valueRules=["Auto-wound", "Bonus Attack On Hit", "Bonus Hit On Hit", "Bonus To-Hit", "Bonus To-Wound", "Extra Attack", "Fear",
+valueRules=["Auto-wound", "Armour Piercing", "Bonus Attack On Hit", "Bonus Hit On Hit", "Bonus To-Hit", "Bonus To-Wound", "Fear",
     "Fight in Extra Ranks", "Killing Blow", "Static CR", "To-Hit Penalty", "To-Wound Penalty"]
 valueRules=sorted(valueRules)
 
@@ -222,13 +222,11 @@ def populate(frame):
         for i in range(len(ruleOptions)):
             ruleLabels[j][ruleOptions[i]] = Label(unitFrames[j], text=ruleOptions[i])
             ruleLabels[j][ruleOptions[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            #Label(unitFrames[j], text=ruleOptions[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             rules[j][ruleOptions[i]]=BooleanVar(unitFrames[j])
             Checkbutton(unitFrames[j], variable=rules[j][ruleOptions[i]], command = partial(checkMount, j, ruleOptions[i])).grid(row=nextRow+1+i, column=nstats//3+1)
         for i in range(len(mountRuleOptions)):
             mountRuleLabels[j][mountRuleOptions[i]] = Label(mountFrames[j], text=mountRuleOptions[i])
             mountRuleLabels[j][mountRuleOptions[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            #Label(mountFrames[j], text=mountRuleOptions[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             mountRules[j][mountRuleOptions[i]]=BooleanVar(mountFrames[j])
             Checkbutton(mountFrames[j], variable=mountRules[j][mountRuleOptions[i]]).grid(row=nextRow+1+i, column=nstats//3+1)
 
@@ -240,7 +238,6 @@ def populate(frame):
         for i in range(len(valueRules)):
             ruleLabels[j][valueRules[i]] = Label(unitFrames[j], text=valueRules[i])
             ruleLabels[j][valueRules[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            #Label(unitFrames[j], text=valueRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             rules[j][valueRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]))
             Checkbutton(unitFrames[j], variable=rules[j][valueRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
             Entry(unitFrames[j], textvariable=rules[j][valueRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)            
@@ -248,7 +245,6 @@ def populate(frame):
         for i in range(len(mountValueRules)):
             mountRuleLabels[j][mountValueRules[i]] = Label(mountFrames[j], text=mountValueRules[i])
             mountRuleLabels[j][mountValueRules[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            #Label(mountFrames[j], text=mountValueRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             mountRules[j][mountValueRules[i]]=(BooleanVar(mountFrames[j]),IntVar(mountFrames[j]))
             Checkbutton(mountFrames[j], variable=mountRules[j][mountValueRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
             Entry(mountFrames[j], textvariable=mountRules[j][mountValueRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
@@ -262,7 +258,6 @@ def populate(frame):
         for i in range(len(tempRules)):
             ruleLabels[j][tempRules[i]] = Label(unitFrames[j], text=tempRules[i])
             ruleLabels[j][tempRules[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            #Label(unitFrames[j], text=tempRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             rules[j][tempRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]), BooleanVar(unitFrames[j]))
             Checkbutton(unitFrames[j], variable=rules[j][tempRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
             Entry(unitFrames[j], textvariable=rules[j][tempRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)            
@@ -270,7 +265,6 @@ def populate(frame):
         for i in range(len(mountTempRules)):
             mountRuleLabels[j][mountTempRules[i]] = Label(mountFrames[j], text=mountTempRules[i])
             mountRuleLabels[j][mountTempRules[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            #Label(mountFrames[j], text=mountTempRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             mountRules[j][mountTempRules[i]]=(BooleanVar(mountFrames[j]),IntVar(mountFrames[j]), BooleanVar(unitFrames[j]))
             Checkbutton(mountFrames[j], variable=mountRules[j][mountTempRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
             Entry(mountFrames[j], textvariable=mountRules[j][mountTempRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
@@ -283,7 +277,6 @@ def populate(frame):
         for i in range(len(diceRules)):
             ruleLabels[j][diceRules[i]] = Label(unitFrames[j], text=diceRules[i])
             ruleLabels[j][diceRules[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            #Label(unitFrames[j], text=diceRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             rules[j][diceRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]), IntVar(unitFrames[j]))
             Checkbutton(unitFrames[j], variable=rules[j][diceRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
             Entry(unitFrames[j], textvariable=rules[j][diceRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
@@ -293,7 +286,6 @@ def populate(frame):
         for i in range(len(mountDiceRules)):
             mountRuleLabels[j][mountDiceRules[i]] = Label(mountFrames[j], text=mountDiceRules[i])
             mountRuleLabels[j][mountDiceRules[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            #Label(mountFrames[j], text=mountDiceRules[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             mountRules[j][mountDiceRules[i]]=(BooleanVar(mountFrames[j]),IntVar(mountFrames[j]), IntVar(mountFrames[j]))
             Checkbutton(mountFrames[j], variable=mountRules[j][mountDiceRules[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
             Entry(mountFrames[j], textvariable=mountRules[j][mountDiceRules[i]][1], width=2).grid(row=nextRow+1+i, column=nstats//3+2)
@@ -445,7 +437,7 @@ def saveTarget(i, aA, sD, rulesD):
     if rulesD[not i]["Ignore Save"].get(): res = 7
     else:
         res = aA if aA != 0 else 7
-        if rulesD[not i]["Armour Piercing"].get():    res += 1
+        if rulesD[not i]["Armour Piercing"][0].get():    res += rules[not i]["Armour Piercing"][1].get()
         if sD>3 :  res += sD-3
     res = min(7, res)
     res = max(2, res)
@@ -587,14 +579,12 @@ def getAttacks(unit, losses, attackType, turn):
             
     if attackType == "Unit":
         apm = stats[unit]["A"].get()
-        if rules[unit]["Extra Attack"][0].get():    apm+=rules[unit]["Extra Attack"][1].get()
         if rules[unit]["1st Turn Attack Bonus"][0].get() and turn == 0:
             apm += rules[unit]["1st Turn Attack Bonus"][1].get()
         if rules[unit]["Until-Loss Attack Bonus"][0].get() and rules[unit]["Until-Loss Attack Bonus"][2].get():
             apm += rules[unit]["Until-Loss Attack Bonus"][1].get()
     elif attackType == "Mount":
         apm = mountStats[unit]["A"].get()
-        if mountRules[unit]["Extra Attack"][0].get():    apm+=mountRules[unit]["Extra Attack"][1].get()
         if mountRules[unit]["1st Turn Attack Bonus"][0].get() and turn == 0:
             apm += mountRules[unit]["1st Turn Attack Bonus"][1].get()
         if mountRules[unit]["Until-Loss Attack Bonus"][0].get() and mountRules[unit]["Until-Loss Attack Bonus"][2].get():
@@ -1381,10 +1371,11 @@ def main():
         ToolTip.createToolTip(ruleLabels[i]["Bonus Attack On Hit"], "E.g. Predation. Value is the dice roll required to proc")
         ToolTip.createToolTip(ruleLabels[i]["Bonus Hit On Hit"], "E.g. Nurgle Locus of Contagion. Value is the dice roll required to proc")
         ToolTip.createToolTip(ruleLabels[i]["Fear"], "Value is modifier applied to Fear test (usually 0)")
+        ToolTip.createToolTip(ruleLabels[i]["Fight in Extra Ranks"] , "Applies all the time, not only when not charging")
         ToolTip.createToolTip(ruleLabels[i]["Killing Blow"], "Value is dice roll required to proc (usually 6)")
         ToolTip.createToolTip(ruleLabels[i]["Static CR"], "CR Bonus applied to every round e.g. Banner or BSB")
         ToolTip.createToolTip(ruleLabels[i]["To-Hit Penalty"], "Penalty applied when trying to hit this unit")
-        ToolTip.createToolTip(ruleLabels[i]["To-Wound Penatly"], "Penalty applied when trying to wound this unti")
+        ToolTip.createToolTip(ruleLabels[i]["To-Wound Penalty"], "Penalty applied when trying to wound this unti")
         ToolTip.createToolTip(ruleLabels[i]["1st Turn Rerolls"], "E.g. Hatred. Value is not used")
         ToolTip.createToolTip(ruleLabels[i]["Until-Loss Attack Bonus"], "E.g. Frenzy")
         ToolTip.createToolTip(ruleLabels[i]["Impact Hits"], "Number of dice, size of dice, static attacks (e.g. scythes), and strength of attacks")
