@@ -316,6 +316,28 @@ def populate(frame):
         Entry(unitFrames[j], textvariable=rules[j]["Impact Hits"]["strength"], width=2).grid(row=nextRow, column=nstats//3+8)
         
         nextRow += 1
+        
+        #Healing (same format as Impact Hits)
+        ruleLabels[j]["Healing"] = Label(unitFrames[j], text="Healing")
+        ruleLabels[j]["Healing"].grid(row=nextRow, column=0, columnspan=nstats//3, sticky=W)
+        #Label(unitFrames[j], text="Healing").grid(row=nextRow , column=0, columnspan=nstats//3, sticky=W)
+        rules[j]["Healing"]={
+            "active": BooleanVar(unitFrames[j]),
+            "dAmount": IntVar(unitFrames[j]),
+            "dSize": IntVar(unitFrames[j]),
+            "static": IntVar(unitFrames[j]),
+            "prob": IntVar(unitFrames[j])
+        }
+        Checkbutton(unitFrames[j], variable=rules[j]["Healing"]["active"]).grid(row=nextRow, column=nstats//3+1)
+        Entry(unitFrames[j], textvariable=rules[j]["Healing"]["dAmount"], width=2).grid(row=nextRow, column=nstats//3+2)
+        Label(unitFrames[j], text="d").grid(row=nextRow, column=nstats//3+3)
+        OptionMenu(unitFrames[j], rules[j]["Healing"]["dSize"], 1, 1, 3, 6).grid(row=nextRow, column=nstats//3+4)        
+        Label(unitFrames[j], text="+").grid(row=nextRow, column=nstats//3+5)
+        Entry(unitFrames[j], textvariable=rules[j]["Healing"]["static"], width=2).grid(row=nextRow, column=nstats//3+6)
+        Label(unitFrames[j], text="S").grid(row=nextRow, column=nstats//3+7)
+        Entry(unitFrames[j], textvariable=rules[j]["Healing"]["prob"], width=2).grid(row=nextRow, column=nstats//3+8)
+        
+        nextRow += 1
         mountTabRow+=len(mountDiceRules)+1 
         Label(unitFrames[j], text="Reroll rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
         Label(mountFrames[j], text="Reroll rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
@@ -1034,6 +1056,7 @@ def sim():
                     mountRules[i]["To-Hit"][0].set(True)
                     mountRules[i]["To-Hit"][1].set("Failures")
         for i in range(roundcount):
+            # Remove temporary rerolls
             if i == 1:
                 for j in range(2):
                     rules[j]["To-Hit"][0].set(realRerolls[j]["unit"]["To-Hit"][0])
@@ -1052,6 +1075,17 @@ def sim():
             resultText = ""
             for u in range(2):
                 woundsPerRound[u][i] += curNum[u] - num[u][0]
+                #calculate healing after wounds, but before counting models left
+                #only happens on even rounds
+                # TODO? choose rounds on which healing happens
+                if rules[u]["Healing"]["active"].get() and i%2 == 0:
+                    heal_r = randint(0, 100)
+                    if heal_r <= rules[u]["Healing"]["prob"].get():
+                        num[u][0] += rules[u]["Healing"]["static"].get()
+                        for d in range(rules[u]["Healing"]["dAmount"].get()):
+                            num[u][0] += randint(1, rules[u]["Healing"]["dSize"].get())
+                    if num[u][0] > numbers[u][0].get()*int(stats[u]["W"].get()):
+                        num[u][0] = numbers[u][0].get()*int(stats[u]["W"].get())
                 alivePerRound[u][i+1] += num[u][0]
             if debug:
                 print outcome
@@ -1379,6 +1413,7 @@ def main():
         ToolTip.createToolTip(ruleLabels[i]["1st Turn Rerolls"], "E.g. Hatred. Value is not used")
         ToolTip.createToolTip(ruleLabels[i]["Until-Loss Attack Bonus"], "E.g. Frenzy")
         ToolTip.createToolTip(ruleLabels[i]["Impact Hits"], "Number of dice, size of dice, static attacks (e.g. scythes), and strength of attacks")
+        ToolTip.createToolTip(ruleLabels[i]["Healing"], "Number of dice, size of dice, static wounds, and probability of happening")
     #---------------------------------------------------
     root.mainloop()
     
