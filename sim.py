@@ -33,7 +33,7 @@ resultText = ""
 itercount = 10000
 roundcount = 12
 #In debug mode, only do one round and activate console logging
-debug = True
+debug = False
 if debug:
     itercount = 1
     roundcount = 1
