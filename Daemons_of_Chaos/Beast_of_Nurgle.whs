@@ -3,7 +3,7 @@ Beast of Nurgle
 0,0,0,0,
 40mm
 Monstrous Support,Stomp,Unbreakable,
-Auto-wound(6),To-Hit Penalty(1),
+Auto-wound(6),To-Hit Penalty(1),Fear(0),
 
 Random Attacks(1;6),
 

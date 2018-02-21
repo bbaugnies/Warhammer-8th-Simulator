@@ -33,7 +33,7 @@ resultText = ""
 itercount = 10000
 roundcount = 12
 #In debug mode, only do one round and activate console logging
-debug = False
+debug = True
 if debug:
     itercount = 1
     roundcount = 1
@@ -108,7 +108,7 @@ valueRules=["Auto-wound", "Armour Piercing", "Bonus Attack On Hit", "Bonus Hit O
     "Fight in Extra Ranks", "Killing Blow", "Static CR", "To-Hit Penalty", "To-Wound Penalty"]
 valueRules=sorted(valueRules)
 
-tempRules = ["1st Turn Attack Bonus", "1st Turn Rerolls", "1st Turn Resolution Bonus", "1st Turn Strength Bonus", "Until-Loss Attack Bonus"]
+tempRules = ["1st Turn Attack Bonus", "1st Turn Hit Rerolls", "1st Turn Resolution Bonus", "1st Turn Strength Bonus", "1st Turn Ward Bonus", "1st Turn Wound Rerolls", "Until-Loss Attack Bonus"]
 tempRules = sorted(tempRules)
 
 diceRules=["Multiple Wounds", "Random Attacks"]
@@ -595,6 +595,9 @@ def getStats(turn):
         #Ward Save
         s[i]["Ward"] = stats[i]["Wa"].get() if stats[i]["Wa"].get() != 0 else 7
         ms[i]["Ward"] = stats[i]["Wa"].get() if stats[i]["Wa"].get() != 0 else 7
+        if turn == 0:
+            if rules[i]["1st Turn Ward Bonus"][0].get() and turn == 0:
+                s[i]["Ward"] -= rules[i]["1st Turn Ward Bonus"][1].get()
         
     #This part is only usefull for rerolls, rest is taken care of by setTurnOrder
         s[i]["Priority"] = rules[i]["Always Strikes First"].get() - rules[i]["Always Strikes Last"].get()
@@ -1132,15 +1135,22 @@ def sim():
             #reset frenzy-type bonus
             rules[i]["Until-Loss Attack Bonus"][2].set(True)
             mountRules[i]["Until-Loss Attack Bonus"][2].set(True)
+            #don't need armor and ward for temp changes
             for r in mountRerolls:
                 realRerolls[i]["unit"][r] = (rules[i][r][0].get(), rules[i][r][1].get())
                 realRerolls[i]["mount"][r] = (mountRules[i][r][0].get(), mountRules[i][r][1].get())
-                if rules[i]["1st Turn Rerolls"][0].get():
+                if rules[i]["1st Turn Hit Rerolls"][0].get():
                     rules[i]["To-Hit"][0].set(True)
                     rules[i]["To-Hit"][1].set("Failures")
-                if mountRules[i]["1st Turn Rerolls"][0].get():
+                if mountRules[i]["1st Turn Hit Rerolls"][0].get():
                     mountRules[i]["To-Hit"][0].set(True)
                     mountRules[i]["To-Hit"][1].set("Failures")
+                if rules[i]["1st Turn Wound Rerolls"][0].get():
+                    rules[i]["To-Wound"][0].set(True)
+                    rules[i]["To-Wound"][1].set("Failures")
+                if mountRules[i]["1st Turn Wound Rerolls"][0].get():
+                    mountRules[i]["To-Wound"][0].set(True)
+                    mountRules[i]["To-Wound"][1].set("Failures")
         for i in range(roundcount):
             # Remove temporary rerolls
             if i == 1:
@@ -1509,7 +1519,7 @@ def ttip():
         ToolTip.createToolTip(ruleLabels[i]["Static CR"], "CR Bonus applied to every round e.g. Banner or BSB")
         ToolTip.createToolTip(ruleLabels[i]["To-Hit Penalty"], "Penalty applied when trying to hit this unit")
         ToolTip.createToolTip(ruleLabels[i]["To-Wound Penalty"], "Penalty applied when trying to wound this unti")
-        ToolTip.createToolTip(ruleLabels[i]["1st Turn Rerolls"], "E.g. Hatred. Value is not used")
+        ToolTip.createToolTip(ruleLabels[i]["1st Turn Hit Rerolls"], "E.g. Hatred. Value is not used")
         ToolTip.createToolTip(ruleLabels[i]["Until-Loss Attack Bonus"], "E.g. Frenzy")
         ToolTip.createToolTip(ruleLabels[i]["Impact Hits"], "Number of dice, size of dice, static attacks (e.g. scythes), and strength of attacks")
         ToolTip.createToolTip(ruleLabels[i]["Healing"], "Number of dice, size of dice, static wounds, and probability of happening")
