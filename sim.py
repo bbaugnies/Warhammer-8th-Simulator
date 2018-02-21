@@ -46,6 +46,7 @@ parser.add_argument("--r1", type = int)
 parser.add_argument("--unit2")
 parser.add_argument("--s2", type = int)
 parser.add_argument("--r2", type = int)
+parser.add_argument("--iter", type = int)
 
 args = parser.parse_args()
 
@@ -1522,7 +1523,7 @@ def main():
         root.mainloop()
     else:
         for arg in vars(args):
-            if vars(args)[arg] == None:
+            if (vars(args)[arg] == None and arg != "iter"):
                 parser.error("Missing argument {}".format(arg))
         cli_setup(frame)
         cli_load(0, args.unit1)
@@ -1531,6 +1532,8 @@ def main():
         numbers[0][1].set(args.r1)
         numbers[1][0].set(args.s2)
         numbers[1][1].set(args.r2)
+        if args.iter != None:
+            itercount = args.iter
         sim()
         print resultText
         
