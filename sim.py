@@ -16,6 +16,8 @@ import ToolTip
 import os
 import matplotlib.pyplot as plt
 import numpy
+import argparse
+import sys
 
 
 
@@ -34,9 +36,20 @@ roundcount = 12
 debug = False
 if debug:
     itercount = 1
-    roundcount = 2
-    
-    
+    roundcount = 1
+
+
+parser = argparse.ArgumentParser(description='Warhammer simulator')
+parser.add_argument("--unit1")
+parser.add_argument("--s1", type = int)
+parser.add_argument("--r1", type = int)
+parser.add_argument("--unit2")
+parser.add_argument("--s2", type = int)
+parser.add_argument("--r2", type = int)
+
+args = parser.parse_args()
+
+
 def _on_mousewheel(event):
     if event.delta < 0 or event.num == 4:
         canvas.yview_scroll(-1, "units")
@@ -384,6 +397,77 @@ def onFrameConfigure(canvas):
     canvas.configure(scrollregion=canvas.bbox("all"))
     
     
+def cli_setup(frame):
+    
+    # Stats
+    for i in range(nstats):
+        stats[0][statValues[i]] = IntVar(frame)
+        stats[1][statValues[i]] = IntVar(frame)
+        
+        
+    for i in range(2):
+        for j in range(nstats):
+            if statValues[j] in mountStatValues:
+                mountStats[i][statValues[j]] = IntVar(frame)
+                
+    for b in baseSizes:
+        b.set(baseSizeOptions[0])
+    for m in mountTypes:
+        m.set(mountTypeOptions[0])
+    mopt = tuple([mountTypeOptions[0]]+mountTypeOptions)   
+    
+    
+    #Rules
+    
+    for j in range(2):
+        for i in range(len(ruleOptions)):
+            rules[j][ruleOptions[i]]=BooleanVar(unitFrames[j])
+        for i in range(len(mountRuleOptions)):
+            mountRules[j][mountRuleOptions[i]]=BooleanVar(mountFrames[j])
+
+        for i in range(len(valueRules)):
+            rules[j][valueRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]))         
+        
+        for i in range(len(mountValueRules)):
+            mountRules[j][mountValueRules[i]]=(BooleanVar(mountFrames[j]),IntVar(mountFrames[j]))
+        
+        for i in range(len(tempRules)):
+            rules[j][tempRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]), BooleanVar(unitFrames[j]))          
+        
+        for i in range(len(mountTempRules)):
+            mountRules[j][mountTempRules[i]]=(BooleanVar(mountFrames[j]),IntVar(mountFrames[j]), BooleanVar(unitFrames[j]))
+            
+        for i in range(len(diceRules)):
+            rules[j][diceRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]), IntVar(unitFrames[j]))
+            
+        for i in range(len(mountDiceRules)):
+            mountRules[j][mountDiceRules[i]]=(BooleanVar(mountFrames[j]),IntVar(mountFrames[j]), IntVar(mountFrames[j]))
+            
+        #Impact hits get their own thing
+        rules[j]["Impact Hits"]={
+            "active": BooleanVar(unitFrames[j]),
+            "dAmount": IntVar(unitFrames[j]),
+            "dSize": IntVar(unitFrames[j]),
+            "staticHits": IntVar(unitFrames[j]),
+            "strength": IntVar(unitFrames[j])
+        }  
+        #Healing (same format as Impact Hits)
+        rules[j]["Healing"]={
+            "active": BooleanVar(unitFrames[j]),
+            "dAmount": IntVar(unitFrames[j]),
+            "dSize": IntVar(unitFrames[j]),
+            "static": IntVar(unitFrames[j]),
+            "prob": IntVar(unitFrames[j])
+        }
+        
+        for i in range(len(rerolls)):
+            rules[j][rerolls[i]]=(BooleanVar(unitFrames[j]), StringVar(unitFrames[j]))
+        
+        for i in range(len(mountRerolls)):
+            mountRules[j][mountRerolls[i]]=(BooleanVar(mountFrames[j]), StringVar(mountFrames[j]))
+        
+        for i in range(len(armyRules)):
+            rules[j][armyRules[i]]=BooleanVar(unitFrames[j])
     
     
 
@@ -792,6 +876,7 @@ def attack(attacker, cstats, rules, a_type, gen=True):
         if next != None:
             result += attack(attacker, cstats, rules, next, gen)
         elif a_type == "ward":
+            if debug: print "Wound !"
             if rules[attacker]["Multiple Wounds"][0].get():
                 dmg = 0
                 for i in range(rules[attacker]["Multiple Wounds"][1].get()):
@@ -1172,7 +1257,11 @@ def sim():
     plt.plot(axis, survivalChance[1], "r-")
     plt.ylabel("Change of surviving to this round")
     plt.ion()
-    plt.show()
+    
+    if len(sys.argv) == 1:
+        plt.show()
+    else:
+        plt.savefig('foo.png', bbox_inches='tight')
     
     if debug: print "#######################################################"
             
@@ -1260,6 +1349,14 @@ def saveUnit(n):
 def loadUnit(n):        
     f = askopenfile(mode='r', initialdir=os.getcwd()+"../../")
     if f == None: return None
+    cli_load(n, f)
+    
+def cli_load(n, unitfile):
+    f = None
+    if type(unitfile) is str:
+        f = open(unitfile, "r")
+    else:
+        f = unitfile
     
     #reset rules
     for i in rules[n]:
@@ -1387,8 +1484,9 @@ def loadUnit(n):
     #toggle mount tab
     checkMount(n, "Mounted")
     
-def main():
-    populate(frame)
+
+    
+def ttip():
     #---------------------------------------------------
     #ToolTips    
     for i in range(2):
@@ -1415,7 +1513,28 @@ def main():
         ToolTip.createToolTip(ruleLabels[i]["Impact Hits"], "Number of dice, size of dice, static attacks (e.g. scythes), and strength of attacks")
         ToolTip.createToolTip(ruleLabels[i]["Healing"], "Number of dice, size of dice, static wounds, and probability of happening")
     #---------------------------------------------------
-    root.mainloop()
+
+    
+def main():
+    if len(sys.argv) == 1:
+        populate(frame)
+        ttip()
+        root.mainloop()
+    else:
+        for arg in vars(args):
+            if vars(args)[arg] == None:
+                parser.error("Missing argument {}".format(arg))
+        cli_setup(frame)
+        cli_load(0, args.unit1)
+        cli_load(1, args.unit2)
+        numbers[0][0].set(args.s1)
+        numbers[0][1].set(args.r1)
+        numbers[1][0].set(args.s2)
+        numbers[1][1].set(args.r2)
+        sim()
+        print resultText
+        
+        
     
 if __name__ == "__main__":
     main()
