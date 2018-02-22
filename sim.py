@@ -50,6 +50,34 @@ parser.add_argument("--iter", type = int)
 
 args = parser.parse_args()
 
+class fakeIntVar:
+    state = 0
+    def __init__(self):
+        self.state = 0
+    def get(self):
+        return self.state
+    def set(self, x):
+        self.state = int(x)
+        
+class fakeBoolVar:
+    state = False
+    def __init__(self):
+        self.state = False
+    def get(self):
+        return self.state
+    def set(self, x):
+        self.state = bool(x)
+        
+class fakeStringVar:
+    state = ""
+    def __init__(self):
+        self.state = ""
+    def get(self):
+        return self.state
+    def set(self, x):
+        self.state = str(x)
+            
+
 
 def _on_mousewheel(event):
     if event.delta < 0 or event.num == 4:
@@ -57,47 +85,21 @@ def _on_mousewheel(event):
     else:
         canvas.yview_scroll(1, "units")
 
-#Tkinter structures (Frames, notebooks, canvas...)
-root = tk.Tk()
-
-title = "Warhammer Sim"
-if debug: title = "TEST MODE - " + title + " - TEST MODE"
-root.wm_title(title)
-canvas = tk.Canvas(root, borderwidth=0)
-canvas.bind_all("MouseWheel", _on_mousewheel)
-canvas.bind_all("<Button-4>", _on_mousewheel)
-canvas.bind_all("<Button-5>", _on_mousewheel)
-frame = tk.Frame(canvas)
-ruleNotebooks = (Notebook(frame), Notebook(frame))
-unitFrames = (tk.Frame(ruleNotebooks[0]), tk.Frame(ruleNotebooks[1]))
-mountFrames = (tk.Frame(ruleNotebooks[0]), tk.Frame(ruleNotebooks[1]))
-draftFrames = (tk.Frame(ruleNotebooks[0]), tk.Frame(ruleNotebooks[1]))
-for i in range(2):
-    ruleNotebooks[i].add(unitFrames[i], text = "Unit")    
-    ruleNotebooks[i].add(mountFrames[i], text = "Mount")
-vsb = tk.Scrollbar(root, orient="vertical", command=canvas.yview)
-canvas.configure(yscrollcommand=vsb.set)
-
-vsb.pack(side="right", fill="y")    
-canvas.pack(side="left", fill="both", expand=True)
-canvas.create_window((10,10), window=frame, anchor="nw")
-
-frame.bind("<Configure>", lambda event, canvas=canvas: onFrameConfigure(canvas))
 
 
 # Global variables
+ruleNotebooks = None
+resBox = None
 statValues = ["WS", "S", "T", "W", "I", "A", "Ld", "AS", "Wa", "C"]
 nstats= len(statValues)
-names = [StringVar(frame), StringVar(frame)]
+names = [None, None]
 stats=(dict(), dict())
 mountStatValues = ["WS", "S", "I", "A"]
 mountStats = [dict(), dict()]
 #numbers format: [unit][0=size, 1=rank]
-numbers=((IntVar(frame), IntVar(frame)), (IntVar(), IntVar()))
+numbers=[[None, None], [None, None]]
 baseSizeOptions=["20mm", "25mm", "40mm", "50mm"]
-baseSizes = (StringVar(frame), StringVar(frame))
-mountTypeOptions = ["Foot", "Cavalry", "Monstrous Cavalry", "Chariot", "Monster"]
-mountTypes = (StringVar(frame), StringVar(frame))
+baseSizes = [None, None]
 rules=(dict(), dict())
 ruleOptions=["Always Strikes First", "Always Strikes Last", "Bonus Attack On Wound", "BSB",
     "Flanking", "Has Champion", "Immune to Psychology", "Ignore Save",  
@@ -138,17 +140,18 @@ mountRerolls = deepcopy(rerolls)
 for i in ["Save", "Ward"]:
     mountRerolls.remove(i)
 
-resBox = StringVar(frame, "")
 
 
 ruleLabels = [{}, {}]
 mountRuleLabels = [{}, {}]
     
 # Fills all the frames
-def populate(frame):
+def populate(frame, unitFrames, mountFrames):
     nextRow=0
 
     # Unit Names
+    names[0] = StringVar(frame)
+    names[1] = StringVar(frame)
     unitLabel1 = Label(frame, text="Unit 1:")
     unitLabel1.grid(row=nextRow, columnspan=nstats, sticky=W)    
     unitLabel2 = Label(frame, text="Unit 2:")
@@ -184,6 +187,7 @@ def populate(frame):
     
     
     #Unit numbers
+    numbers = ((IntVar(frame), IntVar(frame)), (IntVar(frame), IntVar(frame)))
     Label(frame, text="Unit size:").grid(row=nextRow, sticky=W, columnspan=nstats//2)
     size1 = Entry(frame, textvariable=numbers[0][0], width= 10)
     size1.grid(row=nextRow, column=nstats//2, columnspan=nstats//2, sticky=W)
@@ -208,12 +212,9 @@ def populate(frame):
     rank2.delete(0)
     nextRow+=1
 	
-	
+    baseSizes = [StringVar(frame), StringVar(frame)]
     for b in baseSizes:
-        b.set(baseSizeOptions[0])
-    for m in mountTypes:
-        m.set(mountTypeOptions[0])
-    mopt = tuple([mountTypeOptions[0]]+mountTypeOptions)   
+        b.set(baseSizeOptions[0]) 
     
     for i in range(2):
         Label(frame,text="Base Width:").grid(row=nextRow+1, column= i*nstats, sticky=W, columnspan=nstats//2)
@@ -398,77 +399,76 @@ def onFrameConfigure(canvas):
     canvas.configure(scrollregion=canvas.bbox("all"))
     
     
-def cli_setup(frame):
+def cli_setup():
+
     
     # Stats
     for i in range(nstats):
-        stats[0][statValues[i]] = IntVar(frame)
-        stats[1][statValues[i]] = IntVar(frame)
+        stats[0][statValues[i]] = fakeIntVar()
+        stats[1][statValues[i]] = fakeIntVar()
         
         
     for i in range(2):
+        names[i] = fakeStringVar()
+        baseSizes[i] = fakeStringVar()
+        for j in range(2):
+            numbers[i][j] = fakeIntVar()
         for j in range(nstats):
             if statValues[j] in mountStatValues:
-                mountStats[i][statValues[j]] = IntVar(frame)
-                
-    for b in baseSizes:
-        b.set(baseSizeOptions[0])
-    for m in mountTypes:
-        m.set(mountTypeOptions[0])
-    mopt = tuple([mountTypeOptions[0]]+mountTypeOptions)   
+                mountStats[i][statValues[j]] = fakeIntVar()
     
     
     #Rules
     
     for j in range(2):
         for i in range(len(ruleOptions)):
-            rules[j][ruleOptions[i]]=BooleanVar(unitFrames[j])
+            rules[j][ruleOptions[i]]=fakeBoolVar()
         for i in range(len(mountRuleOptions)):
-            mountRules[j][mountRuleOptions[i]]=BooleanVar(mountFrames[j])
+            mountRules[j][mountRuleOptions[i]]=fakeBoolVar()
 
         for i in range(len(valueRules)):
-            rules[j][valueRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]))         
+            rules[j][valueRules[i]]=(fakeBoolVar(),fakeIntVar())         
         
         for i in range(len(mountValueRules)):
-            mountRules[j][mountValueRules[i]]=(BooleanVar(mountFrames[j]),IntVar(mountFrames[j]))
+            mountRules[j][mountValueRules[i]]=(fakeBoolVar(),fakeIntVar())
         
         for i in range(len(tempRules)):
-            rules[j][tempRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]), BooleanVar(unitFrames[j]))          
+            rules[j][tempRules[i]]=(fakeBoolVar(),fakeIntVar(), fakeBoolVar())          
         
         for i in range(len(mountTempRules)):
-            mountRules[j][mountTempRules[i]]=(BooleanVar(mountFrames[j]),IntVar(mountFrames[j]), BooleanVar(unitFrames[j]))
+            mountRules[j][mountTempRules[i]]=(fakeBoolVar(),fakeIntVar(), fakeBoolVar())
             
         for i in range(len(diceRules)):
-            rules[j][diceRules[i]]=(BooleanVar(unitFrames[j]),IntVar(unitFrames[j]), IntVar(unitFrames[j]))
+            rules[j][diceRules[i]]=(fakeBoolVar(),fakeIntVar(), fakeIntVar())
             
         for i in range(len(mountDiceRules)):
-            mountRules[j][mountDiceRules[i]]=(BooleanVar(mountFrames[j]),IntVar(mountFrames[j]), IntVar(mountFrames[j]))
+            mountRules[j][mountDiceRules[i]]=(fakeBoolVar(),fakeIntVar(), fakeIntVar())
             
         #Impact hits get their own thing
         rules[j]["Impact Hits"]={
-            "active": BooleanVar(unitFrames[j]),
-            "dAmount": IntVar(unitFrames[j]),
-            "dSize": IntVar(unitFrames[j]),
-            "staticHits": IntVar(unitFrames[j]),
-            "strength": IntVar(unitFrames[j])
+            "active": fakeBoolVar(),
+            "dAmount": fakeIntVar(),
+            "dSize": fakeIntVar(),
+            "staticHits": fakeIntVar(),
+            "strength": fakeIntVar()
         }  
         #Healing (same format as Impact Hits)
         rules[j]["Healing"]={
-            "active": BooleanVar(unitFrames[j]),
-            "dAmount": IntVar(unitFrames[j]),
-            "dSize": IntVar(unitFrames[j]),
-            "static": IntVar(unitFrames[j]),
-            "prob": IntVar(unitFrames[j])
+            "active": fakeBoolVar(),
+            "dAmount": fakeIntVar(),
+            "dSize": fakeIntVar(),
+            "static": fakeIntVar(),
+            "prob": fakeIntVar()
         }
         
         for i in range(len(rerolls)):
-            rules[j][rerolls[i]]=(BooleanVar(unitFrames[j]), StringVar(unitFrames[j]))
+            rules[j][rerolls[i]]=(fakeBoolVar(), fakeStringVar())
         
         for i in range(len(mountRerolls)):
-            mountRules[j][mountRerolls[i]]=(BooleanVar(mountFrames[j]), StringVar(mountFrames[j]))
+            mountRules[j][mountRerolls[i]]=(fakeBoolVar(), fakeStringVar())
         
         for i in range(len(armyRules)):
-            rules[j][armyRules[i]]=BooleanVar(unitFrames[j])
+            rules[j][armyRules[i]]=fakeBoolVar()
     
     
 
@@ -1007,9 +1007,9 @@ def demonBreak(cr, losses):
 #Used for Impact Hits and (Thunder)Stomp
 dummyrules = dict()
 for i in ruleOptions+armyRules:
-    dummyrules[i] = BooleanVar(frame)
+    dummyrules[i] = fakeBoolVar()
 for i in valueRules + diceRules + rerolls:
-    dummyrules[i] = [BooleanVar(frame)]
+    dummyrules[i] = [fakeBoolVar()]
        
 
 #Resolves one round of combat
@@ -1222,7 +1222,9 @@ def sim():
     resultText += "Draws:\n"
     resultText += str(results[2])
     resultText += "\n"
-    resBox.set(resultText)
+    
+    if len(sys.argv) == 1:
+        resBox.set(resultText)
     
     
     #plot results
@@ -1363,6 +1365,7 @@ def loadUnit(n):
     cli_load(n, f)
     
 def cli_load(n, unitfile):
+    global baseSizes
     f = None
     if type(unitfile) is str:
         f = open(unitfile, "r")
@@ -1493,7 +1496,8 @@ def cli_load(n, unitfile):
             mountRules[n][m[0]][0].set(True)
             mountRules[n][m[0]][1].set(m[1])
     #toggle mount tab
-    checkMount(n, "Mounted")
+    if len(sys.argv) == 1:
+        checkMount(n, "Mounted")
     
 
     
@@ -1527,15 +1531,45 @@ def ttip():
 
     
 def main():
+    global ruleNotebooks
+    global resBox
+    global baseSizes
     if len(sys.argv) == 1:
-        populate(frame)
+        #Tkinter structures (Frames, notebooks, canvas...)
+        root = tk.Tk()
+
+        title = "Warhammer Sim"
+        if debug: title = "TEST MODE - " + title + " - TEST MODE"
+        root.wm_title(title)
+        canvas = tk.Canvas(root, borderwidth=0)
+        canvas.bind_all("MouseWheel", _on_mousewheel)
+        canvas.bind_all("<Button-4>", _on_mousewheel)
+        canvas.bind_all("<Button-5>", _on_mousewheel)
+        frame = tk.Frame(canvas)
+        ruleNotebooks = (Notebook(frame), Notebook(frame))
+        unitFrames = (tk.Frame(ruleNotebooks[0]), tk.Frame(ruleNotebooks[1]))
+        mountFrames = (tk.Frame(ruleNotebooks[0]), tk.Frame(ruleNotebooks[1]))
+        for i in range(2):
+            ruleNotebooks[i].add(unitFrames[i], text = "Unit")    
+            ruleNotebooks[i].add(mountFrames[i], text = "Mount")
+        vsb = tk.Scrollbar(root, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=vsb.set)
+
+        vsb.pack(side="right", fill="y")    
+        canvas.pack(side="left", fill="both", expand=True)
+        canvas.create_window((10,10), window=frame, anchor="nw")
+
+        frame.bind("<Configure>", lambda event, canvas=canvas: onFrameConfigure(canvas))
+        resBox = StringVar(frame, "")
+
+        populate(frame, unitFrames, mountFrames)
         ttip()
         root.mainloop()
     else:
         for arg in vars(args):
             if (vars(args)[arg] == None and arg != "iter"):
                 parser.error("Missing argument {}".format(arg))
-        cli_setup(frame)
+        cli_setup()
         cli_load(0, args.unit1)
         cli_load(1, args.unit2)
         numbers[0][0].set(args.s1)
