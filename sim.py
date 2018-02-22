@@ -85,7 +85,7 @@ def _on_mousewheel(event):
     else:
         canvas.yview_scroll(1, "units")
 
-
+canvas = None
 
 # Global variables
 ruleNotebooks = None
@@ -187,7 +187,10 @@ def populate(frame, unitFrames, mountFrames):
     
     
     #Unit numbers
-    numbers = ((IntVar(frame), IntVar(frame)), (IntVar(frame), IntVar(frame)))
+    for i in range(2):
+        baseSizes[i] = StringVar(frame)
+        for j in range(2):
+            numbers[i][j] = IntVar(frame)
     Label(frame, text="Unit size:").grid(row=nextRow, sticky=W, columnspan=nstats//2)
     size1 = Entry(frame, textvariable=numbers[0][0], width= 10)
     size1.grid(row=nextRow, column=nstats//2, columnspan=nstats//2, sticky=W)
@@ -212,7 +215,6 @@ def populate(frame, unitFrames, mountFrames):
     rank2.delete(0)
     nextRow+=1
 	
-    baseSizes = [StringVar(frame), StringVar(frame)]
     for b in baseSizes:
         b.set(baseSizeOptions[0]) 
     
@@ -573,7 +575,7 @@ def getStats(turn):
                 strength[i] += rules[i]["1st Turn Strength Bonus"][1].get()
             if mountRules[i]["1st Turn Strength Bonus"][0].get() and turn == 0:
                 mStrength[i] += mountRules[i]["1st Turn Strength Bonus"][1].get()
-        if rules[not i]["Fear"][0].get() and not rules[i]["Immune to Psychology"].get():
+        if rules[not i]["Fear"][0].get() and not rules[i]["Immune to Psychology"].get() and not rules[not i]["Unbreakable"].get():
             if not fearTest(rules[not i]["Fear"][1].get(), i):
                 ws[i] = 1
                 mws[i] = 1                
@@ -1534,6 +1536,7 @@ def main():
     global ruleNotebooks
     global resBox
     global baseSizes
+    global canvas
     if len(sys.argv) == 1:
         #Tkinter structures (Frames, notebooks, canvas...)
         root = tk.Tk()
