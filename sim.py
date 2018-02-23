@@ -1129,6 +1129,7 @@ def sim():
     
     realRerolls = [{"unit": {}, "mount": {}}, {"unit": {}, "mount": {}}]
     for j in range(itercount):
+	print j
         #copy number of units for running counts
         num=[[numbers[0][0].get(), numbers[0][1].get()], [numbers[1][0].get(), numbers[1][1].get()]]
         for i in range(2):
@@ -1537,6 +1538,7 @@ def main():
     global resBox
     global baseSizes
     global canvas
+    global itercount
     if len(sys.argv) == 1:
         #Tkinter structures (Frames, notebooks, canvas...)
         root = tk.Tk()
