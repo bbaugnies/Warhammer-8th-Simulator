@@ -1095,7 +1095,7 @@ def fightRound(roundn, cstats, mstats):
         mountRules[cr[0]]["Until-Loss Attack Bonus"][2].set(False)
         
         if rules[cr[0]]["Unstable"].get():
-            num[cr[0]][0] = num[cr[0]][0] - abs(cr[1])
+            num[cr[0]][0] = num[cr[0]][0] - (abs(cr[1])-1 if rules[cr[0]]["BSB"].get() else abs(cr[1]))
         if rules[cr[0]]["Demonic Instability"].get():
             demonBreak(cr, kills[not cr[0]])
         return (breakTest(cr), cr[0])
