@@ -575,7 +575,7 @@ def getStats(turn):
                 strength[i] += rules[i]["1st Turn Strength Bonus"][1].get()
             if mountRules[i]["1st Turn Strength Bonus"][0].get() and turn == 0:
                 mStrength[i] += mountRules[i]["1st Turn Strength Bonus"][1].get()
-        if rules[not i]["Fear"][0].get() and not rules[i]["Immune to Psychology"].get() and not rules[not i]["Unbreakable"].get():
+        if rules[not i]["Fear"][0].get() and not rules[i]["Immune to Psychology"].get() and not rules[i]["Unbreakable"].get():
             if not fearTest(rules[not i]["Fear"][1].get(), i):
                 ws[i] = 1
                 mws[i] = 1                
@@ -953,9 +953,17 @@ def combatResolution(kills, turn):
         return 0
     return (looser, res, steadfast, rank[looser])
     
-    
+
 # Returns true if break test passed, false otherwise
-def breakTest(cr):
+# cr: combat resolution.
+#   [0]: id of looser
+#   [1]: amount lost by
+#   [2]: if looser is steadfast
+#   [3]: rank bonus of looser
+# losses: number of wounds lost by looser this round
+#
+# if Demonic Instability, returns true but adjusts the units left
+def breakTest(cr, losses):
     global resultText
     if num[cr[0]][0] <= 0: 
         resultText += "Break test failed, no units left"
@@ -968,13 +976,19 @@ def breakTest(cr):
         target -= abs(cr[1])
     if rules[cr[0]]["Strength in Numbers"].get():
         target += cr[3]
+    target = min(10, target)
+    d_target = max (0, target)
+    target = max(2, target)
     dice = [randint(1,6), randint(1,6), randint(1,6)]
     if rules[cr[0]]["Cold-blooded"].get():
         total = sum(dice) - max(dice)
     else:
         total = dice[0] + dice[1]
         
-    if total > target and rules[cr[0]]["BSB"].get():
+    #for normal units, reroll if failed
+    #for demons, reroll if failed and over average
+    #TODO: better reroll condition for demonic instability
+    if rules[cr[0]]["BSB"].get() and total > target and (not rules[cr[0]]["Demonic Instability"].get() or (total > 8 and rules[cr[0]]["Demonic Instability"].get())):
         dice = [randint(1,6), randint(1,6), randint(1,6)]
         if rules[cr[0]]["Cold-blooded"].get():
             total = sum(dice) - max(dice)
@@ -984,24 +998,22 @@ def breakTest(cr):
         resultText += "Break test passed. Rolled {}, needed {}".format(total, target)
     else:
         resultText += "Break test failed. Rolled {}, needed {}".format(total, target)
+        if rules[cr[0]]["Demonic Instability"].get():
+            demonBreak(cr[0], total, d_target, losses)
+            return (num[cr[0]][0] > 0)
+            
     return total <= target
     
         
-def demonBreak(cr, losses):
-    if num[cr[0]][0] <= 0: return False
-    target = max(0, stats[cr[0]]["Ld"].get() - abs(cr[1]))
-    total = randint(1, 6) + randint(1, 6)
-    if total > 8 and rules[cr[0]]["BSB"].get():
-        total = randint(1,6) + randint(1, 6)
+#adjusts unit number for demonic break test
+def demonBreak(looser, total, target, losses):
     if total == 2:
-        num[cr[0]][0] += losses
+        num[looser][0] += losses
     elif total <= target:
         pass
     elif total == 12:
-        num[cr[0]][0] = 0
-    else:
-        num[cr[0]][0] -= total - target
-    return total <= target
+        num[looser][0] = 0
+    num[looser][0] -= total - target
 
 
         
@@ -1018,6 +1030,10 @@ for i in valueRules + diceRules + rerolls:
 #roundn: the number of the round
 #stats: the ordered combatStats of both units
 #mstats: combatStats of both units' mounts
+#
+#returns (bool, id).
+#bool: true if the fight continues (break test passed or tie)
+#id: id of the looser, "tie" if tie (not used)
 def fightRound(roundn, cstats, mstats):
     global resultText
     global num
@@ -1086,7 +1102,6 @@ def fightRound(roundn, cstats, mstats):
         cur = num[i][0]
         cur = cur - kills[not i]
         num[i][0]= cur
-    resultText += str(num) + "\n"
     cr = combatResolution(kills, roundn)
     # cr[0] = id of looser, cr == 0 if tie
     if cr != 0:        
@@ -1096,9 +1111,7 @@ def fightRound(roundn, cstats, mstats):
         
         if rules[cr[0]]["Unstable"].get():
             num[cr[0]][0] = num[cr[0]][0] - (abs(cr[1])-1 if rules[cr[0]]["BSB"].get() else abs(cr[1]))
-        if rules[cr[0]]["Demonic Instability"].get():
-            demonBreak(cr, kills[not cr[0]])
-        return (breakTest(cr), cr[0])
+        return (breakTest(cr, kills[not cr[0]]), cr[0])
     else: return (True, "tie")
     
     
@@ -1168,6 +1181,7 @@ def sim():
             setTurnOrder(i)
             curNum = [num[0][0], num[1][0]]
             outcome = fightRound(i, combatStats, mountCombatStats)
+            resultText += "\n" + str(num) + "\n"
             if debug:    
                 print resultText
             resultText = ""
@@ -1203,6 +1217,7 @@ def sim():
                 resultPerRound_individual[2][i] += 1
                 survivalChance[0][i] += 1
                 survivalChance[1][i] += 1
+        #after 12 rounds, update "tie" statistics
         if outcome[0]:
             results[2].wins += 1
             results[2].rounds += i+1
