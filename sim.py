@@ -32,10 +32,10 @@ resultText = ""
 itercount = 10000
 roundcount = 12
 #In debug mode, only do one round and activate console logging
-debug = False
+debug = True
 if debug:
     itercount = 1
-    roundcount = 2
+    roundcount = 1
 
 
 parser = argparse.ArgumentParser(description='Warhammer simulator')
@@ -351,7 +351,7 @@ def populate(frame, unitFrames, mountFrames):
         OptionMenu(unitFrames[j], rules[j]["Healing"]["dSize"], 1, 1, 3, 6).grid(row=nextRow, column=nstats//3+4)        
         Label(unitFrames[j], text="+").grid(row=nextRow, column=nstats//3+5)
         Entry(unitFrames[j], textvariable=rules[j]["Healing"]["static"], width=2).grid(row=nextRow, column=nstats//3+6)
-        Label(unitFrames[j], text="S").grid(row=nextRow, column=nstats//3+7)
+        Label(unitFrames[j], text="P").grid(row=nextRow, column=nstats//3+7)
         Entry(unitFrames[j], textvariable=rules[j]["Healing"]["prob"], width=2).grid(row=nextRow, column=nstats//3+8)
         
         nextRow += 1
@@ -486,7 +486,24 @@ def checkMount(unit, rule):
         else:
             ruleNotebooks[unit].tab(1, state = "disabled")
 
+# Executes a leadership roll for the selected unit
+# Handles "Cold-blooded" rule
+# id: id of the unit to roll for
 #
+# return: value of the roll (sum of 2 dice)
+def ldRoll(id):
+    dice = [randint(1, 6), randint(1, 6), randint(1, 6)]
+    if rules[id]["Cold-blooded"].get():
+        total = sum(dice) - max(dice)
+    else:
+        total = dice[0] + dice[1]
+    return total
+
+# Executes fear test
+# penalty: amount by which ld is reduced for roll
+# unit: id of unit rolling the test
+#
+# returns: true if test is passed, false otherwise
 def fearTest(penalty, unit):    
     target = stats[unit]["Ld"].get()-penalty
     dice = [randint(1,6), randint(1,6), randint(1,6)]
@@ -553,10 +570,17 @@ def saveTarget(i, aA, sD, rulesD):
     return res
         
 
-#Return the combatStats of both units
+#Return the combatStats of both units. Sets rerolls based on ASF
 #These are the target rolls for hitting, wounding, saving, and wards
 #as well as the order of attack (1 for first, -1 for second, 0 for simultaneous)
 #turn: the number of the turn
+#
+# Return: list of [combatstats, mountcombatstats]
+#       each holds targets for rolls:
+#           -to hit
+#           -to wound
+#           -own unit's armor save
+#           -own unit's ward save
 def getStats(turn):
     s = (dict(), dict())
     ms = (dict(), dict())
@@ -683,7 +707,9 @@ def setTurnOrder(turn):
 #   the number of models in base contact in the first rank
 #unit: the identifier of the attacking unit (0 or 1)
 #losses: the amount of models the unit lost before attacking
-#        (only non-0 if the unit attacks second)    
+#        (only non-0 if the unit attacks second)
+#
+# Returns: number of attacks
 def getAttacks(unit, losses, attackType, turn):
     if num[unit][0] == 0 or num[unit][1] == 0:
         return 0
@@ -763,8 +789,15 @@ def getAttacks(unit, losses, attackType, turn):
     attacks = max(0, attacks)
     if attackType == "Unit" and rules[unit]["Has Champion"].get() and attacks != 0: attacks += 1
     return attacks
+    
    
 #Return the result of a dice roll, including all reroll rules
+# attacker: id of the attacking unit
+# cstats: combat stats to use
+# stat: stat to use for the roll (to-hit, to-wound, save, or ward)
+# rules: rule dictionnary to use
+#
+# returns: final rolled value
 def calcRerolls(attacker, cstats, stat, rules):
     #print "attacker: {}\ncstats: {}\nstat: {}\nrules[0]: {}\n\nrules[1]: {}".format(attacker, cstats, stat, rules[0].keys(), rules[1].keys())
     r = randint(1, 6)
@@ -847,7 +880,6 @@ roll_to_rule = {
 #Calculates if a roll is passed or not
 #(if higher than target for Hit and Wound, if lower for Save and Ward)
 def passRoll(r, target, lt):
-    #print "passRoll: {}, {}, {}".format(r, target, lt)
     if lt: return r<target
     else: return r>= target
 
@@ -919,6 +951,8 @@ def getWounds(attacker, attacks, cstats, rules):
     
 #Calculates the combat resolution
 #kills: the number of kills done during the round
+#turn: number of the curent round
+#
 #return ([id of the looser], [amount lost by], [if looser is steadfast], [rank bonus of the looser])
 def combatResolution(kills, turn):
     global resultText
@@ -963,13 +997,6 @@ def combatResolution(kills, turn):
     
     
 
-def ldRoll(id):
-    dice = [randint(1, 6), randint(1, 6), randint(1, 6)]
-    if rules[id]["Cold-blooded"].get():
-        total = sum(dice) - max(dice)
-    else:
-        total = dice[0] + dice[1]
-    return total
 
 # Returns true if break test passed, false otherwise
 # cr: combat resolution.
@@ -1024,6 +1051,10 @@ def breakTest(cr, losses):
 
         
 #adjusts unit number for demonic break test
+# looser: id of the looser performing the test
+# total: value rolled in the ld test
+# target: target value for the ld roll
+# losses: number of wounds suffered this round
 def demonBreak(looser, total, target, losses):
     if total == 2:
         num[looser][0] += losses
@@ -1086,7 +1117,14 @@ def fightRound(roundn, cstats, mstats):
                 #set auto-hit (to-hit = 1), new to-wound, and adapt ennemy's save
                 s = deepcopy(cstats)
                 s[unit[0]]["To-Hit"] = 1
-                s[unit[0]]["To-Wound"] = toWound(unit[0], rules[unit[0]]["Impact Hits"]["strength"].get(), stats[not unit[0]]["T"].get(), r)
+                #to-wound uses strength provided if != 0, mount's if mounted, or unit's
+                if rules[unit[0]]["Impact Hits"]["strength"].get() != 0:
+                    s[unit[0]]["To-Wound"] = toWound(unit[0], rules[unit[0]]["Impact Hits"]["strength"].get(), stats[not unit[0]]["T"].get(), r)
+                elif rules[unit[0]]["Mounted"].get():
+                    s[unit[0]]["To-Wound"] = mstats[unit[0]]["To-Wound"]
+                else:
+                    s[unit[0]]["To-Wound"] = cstats[unit[0]]["To-Wound"]
+
                 #for save, unit[0] is considered "defender" => use r so no armor piercing/ignore save
                 s[not unit[0]]["Save"] = saveTarget(not unit[0], stats[not unit[0]]["AS"].get(), rules[unit[0]]["Impact Hits"]["strength"].get(), r)
                 k = getWounds(unit[0], att, s, r)
@@ -1586,7 +1624,7 @@ def ttip():
         ToolTip.createToolTip(ruleLabels[i]["To-Wound Penalty"], "Penalty applied when trying to wound this unti")
         ToolTip.createToolTip(ruleLabels[i]["1st Turn Hit Rerolls"], "E.g. Hatred. Value is not used")
         ToolTip.createToolTip(ruleLabels[i]["Until-Loss Attack Bonus"], "E.g. Frenzy")
-        ToolTip.createToolTip(ruleLabels[i]["Impact Hits"], "Number of dice, size of dice, static attacks (e.g. scythes), and strength of attacks")
+        ToolTip.createToolTip(ruleLabels[i]["Impact Hits"], "Number of dice, size of dice, static attacks (e.g. scythes), and strength of attacks. Leave S = 0 tu use unit's (or mount if mounted)")
         ToolTip.createToolTip(ruleLabels[i]["Healing"], "Number of dice, size of dice, static wounds, and probability of happening")
         ToolTip.createToolTip(ruleLabels[i]["Flanking"], "Leave 0 if the enemy can combat reform. number of attacks is wrong (calculated as in rear charge)")
         ToolTip.createToolTip(ruleLabels[i]["Rear Charge"], "Leave 0 if enemy can combat reform. For any other value, unit will stay at the rear regardless of outcome.")
