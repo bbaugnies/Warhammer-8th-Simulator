@@ -106,7 +106,7 @@ ruleOptions=["Always Strikes First", "Always Strikes Last", "Bonus Attack On Wou
 ruleOptions=sorted(ruleOptions)
 
 valueRules=["Auto-wound", "Armour Piercing", "Bonus Attack On Hit", "Bonus Hit On Hit", "Bonus To-Hit", "Bonus To-Wound", "Fear",
-    "Fight in Extra Ranks", "Killing Blow", "Static CR", "To-Hit Penalty", "To-Wound Penalty"]
+    "Fight in Extra Ranks", "Killing Blow", "Minimum To-Hit", "Minimum To-Wound", "Static CR", "To-Hit Penalty", "To-Wound Penalty"]
 valueRules=sorted(valueRules)
 
 tempRules = ["1st Turn Attack Bonus", "1st Turn Hit Rerolls", "1st Turn Resolution Bonus", "1st Turn Strength Bonus", "1st Turn Ward Bonus", "1st Turn Wound Rerolls", "Until-Loss Attack Bonus",
@@ -536,6 +536,7 @@ def toHit(i, wsA, wsD, rulesA):
     if rules[not i]["To-Hit Penalty"][0].get(): res += rules[not i]["To-Hit Penalty"][1].get()
     res = min(6, res)
     res = max(2, res)
+    if rulesA[i]["Minimum To-Hit"][0].get(): res = min(res, rulesA[i]["Minimum To-Hit"][1].get())    
     return res
 
 # Calculate To-Wound target
@@ -549,7 +550,8 @@ def toWound(i, sA, tD, rulesA):
     if rulesA[i]["Bonus To-Wound"][0].get(): res-= rulesA[i]["Bonus To-Wound"][0].get()
     if rules[not i]["To-Wound Penalty"][0].get(): res+= rules[not i]["To-Wound Penalty"][0].get()
     res = min(6, res)
-    res = max(1, res)
+    res = max(2, res)
+    if rulesA[i]["Minimum To-Wound"][0].get(): res = min(res, rulesA[i]["Minimum To-Wound"][1].get())
     return res
 
 # Calculate Armor save target
@@ -1628,6 +1630,8 @@ def ttip():
         ToolTip.createToolTip(ruleLabels[i]["Healing"], "Number of dice, size of dice, static wounds, and probability of happening")
         ToolTip.createToolTip(ruleLabels[i]["Flanking"], "Leave 0 if the enemy can combat reform. number of attacks is wrong (calculated as in rear charge)")
         ToolTip.createToolTip(ruleLabels[i]["Rear Charge"], "Leave 0 if enemy can combat reform. For any other value, unit will stay at the rear regardless of outcome.")
+        ToolTip.createToolTip(ruleLabels[i]["Minimum To-Hit"], "Attacks will always hit with this score unless a lower value is needed (can be set to 1 to auto-hit)")
+        ToolTip.createToolTip(ruleLabels[i]["Minimum To-Wound"], "Hits will always wound with this score unless a lower value is needed (can be set to 2 to auto-hit)")
     #---------------------------------------------------
 
     
