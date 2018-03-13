@@ -22,8 +22,7 @@ import sys
 
 
 '''
-Need to update unit files
-added flanking and rear charge to rule list, not implemented
+flanking and rear: handled loss of the rule, still need to implement effects
 '''
 
 
@@ -36,7 +35,7 @@ roundcount = 12
 debug = False
 if debug:
     itercount = 1
-    roundcount = 1
+    roundcount = 2
 
 
 parser = argparse.ArgumentParser(description='Warhammer simulator')
@@ -102,15 +101,16 @@ baseSizeOptions=["20mm", "25mm", "40mm", "50mm"]
 baseSizes = [None, None]
 rules=(dict(), dict())
 ruleOptions=["Always Strikes First", "Always Strikes Last", "Bonus Attack On Wound", "BSB",
-    "Flanking", "Has Champion", "Immune to Psychology", "Ignore Save",  
-    "Monstrous Support", "Mounted","Rear Charge", "Stomp", "Stubborn", "Thunderstomp", "Unbreakable", "Unstable"]
+    "Has Champion", "Immune to Psychology", "Ignore Save",  
+    "Monstrous Support", "Mounted", "Stomp", "Stubborn", "Thunderstomp", "Unbreakable", "Unstable"]
 ruleOptions=sorted(ruleOptions)
 
 valueRules=["Auto-wound", "Armour Piercing", "Bonus Attack On Hit", "Bonus Hit On Hit", "Bonus To-Hit", "Bonus To-Wound", "Fear",
     "Fight in Extra Ranks", "Killing Blow", "Static CR", "To-Hit Penalty", "To-Wound Penalty"]
 valueRules=sorted(valueRules)
 
-tempRules = ["1st Turn Attack Bonus", "1st Turn Hit Rerolls", "1st Turn Resolution Bonus", "1st Turn Strength Bonus", "1st Turn Ward Bonus", "1st Turn Wound Rerolls", "Until-Loss Attack Bonus"]
+tempRules = ["1st Turn Attack Bonus", "1st Turn Hit Rerolls", "1st Turn Resolution Bonus", "1st Turn Strength Bonus", "1st Turn Ward Bonus", "1st Turn Wound Rerolls", "Until-Loss Attack Bonus",
+    "Rear Charge", "Flanking" ]
 tempRules = sorted(tempRules)
 
 diceRules=["Multiple Wounds", "Random Attacks"]
@@ -120,12 +120,12 @@ rerolls=["To-Hit", "To-Wound", "Save", "Ward"]
 rerolls=sorted(rerolls)
 rerollOptions=["1s", "6s", "Failures", "Successes"]
 
-armyRules=["Cold-blooded", "Demonic Instability", "Strength in Numbers"]
+armyRules=["Cancel Rank Bonus", "Cold-blooded", "Demonic Instability", "Double Rank Bonus", "Strength in Numbers"]
 armyRules=sorted(armyRules)
 
 mountRules = (dict(), dict())
 mountRuleOptions = deepcopy(ruleOptions)
-for i in ["BSB", "Flanking", "Has Champion", "Immune to Psychology", "Monstrous Support", "Mounted", "Rear Charge", "Stomp", "Stubborn", "Thunderstomp", "Unbreakable", "Unstable"]:
+for i in ["BSB", "Has Champion", "Immune to Psychology", "Monstrous Support", "Mounted", "Stomp", "Stubborn", "Thunderstomp", "Unbreakable", "Unstable"]:
     mountRuleOptions.remove(i)
 mountValueRules = deepcopy(valueRules)
 for i in ["Fear", "Fight in Extra Ranks", "Static CR"]:
@@ -741,7 +741,7 @@ def getAttacks(unit, losses, attackType, turn):
     
     #Support attacks, unit only
     available-=int(num[unit][1])
-    if attackType == "Unit":
+    if attackType == "Unit" and not (rules[not unit]["Flanking"][0].get() and rules[not unit]["Flanking"][2].get()) and not (rules[not unit]["Rear Charge"][0].get() and rules[not unit]["Rear Charge"][2].get()):
         supportRanks = 1
         if int(num[unit][1])>=10 and not rules[unit]["Monstrous Support"].get(): supportRanks+=1
         if int(num[unit][1])>=6 and rules[unit]["Monstrous Support"].get(): supportRanks+=1
@@ -926,6 +926,11 @@ def combatResolution(kills, turn):
     for i in range(2):
         if rules[i]["Static CR"][0].get():
             result[i] += rules[i]["Static CR"][1].get()
+        if rules[i]["Flanking"][0].get() and rules[i]["Flanking"][2].get():
+            result[i] += 1
+        if rules[i]["Rear Charge"][0].get() and rules[i]["Rear Charge"][2].get():
+            result[i] += 2
+            
     rank=[0, 0]
     for i in range(2):
         left = num[i][0]
@@ -933,7 +938,10 @@ def combatResolution(kills, turn):
         if rules[i]["1st Turn Resolution Bonus"][0].get() and turn == 0: result[i]+=1
         if num[i][1] >= 5:
             rank[i] = left//num[i][1] - 1 + (left%num[i][1] >= 5)
-        result[i] += min(3, rank[i])
+        f = rules[not i]["Flanking"][0].get() and rules[not i]["Flanking"][2].get()
+        r = rules[not i]["Rear Charge"][0].get() and rules [not i]["Rear Charge"][2].get()
+        if not rules[not i]["Cancel Rank Bonus"].get() and not ((f or r) and rank[not i]>0):
+            result[i] += min(3, rank[i]) * (2 if rules[i]["Double Rank Bonus"].get() else 1)
     res = result[0] - result[1]
     steadfast = False
     if res > 0:
@@ -951,8 +959,17 @@ def combatResolution(kills, turn):
     else:
         resultText += "combat is tied"
         return 0
-    return (looser, res, steadfast, rank[looser])
+    return (looser, res, steadfast, min(3, rank[looser]))
     
+    
+
+def ldRoll(id):
+    dice = [randint(1, 6), randint(1, 6), randint(1, 6)]
+    if rules[id]["Cold-blooded"].get():
+        total = sum(dice) - max(dice)
+    else:
+        total = dice[0] + dice[1]
+    return total
 
 # Returns true if break test passed, false otherwise
 # cr: combat resolution.
@@ -967,43 +984,44 @@ def breakTest(cr, losses):
     global resultText
     if num[cr[0]][0] <= 0: 
         resultText += "Break test failed, no units left"
-        return False
-    if rules[cr[0]]["Unbreakable"].get():
-        resultText += "Break test passed, Unbreakable"
-        return True
+        return [False, False]
+        
+    # calculate target roll
     target = stats[cr[0]]["Ld"].get()
     if not cr[2] and not rules[cr[0]]["Stubborn"].get():
         target -= abs(cr[1])
     if rules[cr[0]]["Strength in Numbers"].get():
         target += cr[3]
     target = min(10, target)
+    # for demonic instability
     d_target = max (0, target)
     target = max(2, target)
-    dice = [randint(1,6), randint(1,6), randint(1,6)]
-    if rules[cr[0]]["Cold-blooded"].get():
-        total = sum(dice) - max(dice)
-    else:
-        total = dice[0] + dice[1]
-        
+    
+    # 2 ld rolls, one for break test, the other to reform
+    total = ldRoll(cr[0])        
     #for normal units, reroll if failed
     #for demons, reroll if failed and over average
     #TODO: better reroll condition for demonic instability
     if rules[cr[0]]["BSB"].get() and total > target and (not rules[cr[0]]["Demonic Instability"].get() or (total > 8 and rules[cr[0]]["Demonic Instability"].get())):
-        dice = [randint(1,6), randint(1,6), randint(1,6)]
-        if rules[cr[0]]["Cold-blooded"].get():
-            total = sum(dice) - max(dice)
-        else:
-            total = dice[0] + dice[1]
+        total = ldRoll(cr[0])
+    reform = ldRoll(cr[0])
+    if rules[cr[0]]["BSB"].get() and total > target:
+        reform = ldRoll(cr[0])        
+    
+    if rules[cr[0]]["Unbreakable"].get():
+        resultText += "Break test passed, Unbreakable"
+        return [True, reform <= target]
+    
     if total <= target:
-        resultText += "Break test passed. Rolled {}, needed {}".format(total, target)
+        resultText += "Break test passed. Rolled {}, needed {}\n".format(total, target)
     else:
-        resultText += "Break test failed. Rolled {}, needed {}".format(total, target)
+        resultText += "Break test failed. Rolled {}, needed {}\n".format(total, target)
         if rules[cr[0]]["Demonic Instability"].get():
             demonBreak(cr[0], total, d_target, losses)
-            return (num[cr[0]][0] > 0)
+            return [(num[cr[0]][0] > 0), reform <= target]
             
-    return total <= target
-    
+    return [total <= target, reform <= target]
+
         
 #adjusts unit number for demonic break test
 def demonBreak(looser, total, target, losses):
@@ -1105,14 +1123,36 @@ def fightRound(roundn, cstats, mstats):
     cr = combatResolution(kills, roundn)
     # cr[0] = id of looser, cr == 0 if tie
     if cr != 0:        
-        #Looser looses frenzy-type bonuses
+        #Looser looses loosable bonusses (frenzy, rear, flank)
         rules[cr[0]]["Until-Loss Attack Bonus"][2].set(False)
         mountRules[cr[0]]["Until-Loss Attack Bonus"][2].set(False)
+        if rules[cr[0]]["Rear Charge"][1].get() == 0:
+            rules[cr[0]]["Rear Charge"][2].set(False)
+        if rules[cr[0]]["Flanking"][1].get() == 0:
+            rules[cr[0]]["Flanking"][2].set(False)
         
         if rules[cr[0]]["Unstable"].get():
             num[cr[0]][0] = num[cr[0]][0] - (abs(cr[1])-1 if rules[cr[0]]["BSB"].get() else abs(cr[1]))
-        return (breakTest(cr, kills[not cr[0]]), cr[0])
-    else: return (True, "tie")
+        bt_result = breakTest(cr, kills[not cr[0]])
+        # if reform ld test is passed, opponent looses flank/rear bonus
+        if bt_result[1]:
+            if debug:
+                resultText +=  "Reforming\n"
+            if rules[not cr[0]]["Rear Charge"][1].get() == 0:
+                rules[not cr[0]]["Rear Charge"][2].set(False)
+            if rules[not cr[0]]["Flanking"][1].get() == 0:
+                rules[not cr[0]]["Flanking"][2].set(False)
+            
+        return (bt_result[0], cr[0])
+    else:
+        #both can reform, loose flank and rear
+        for i in range(2):
+            if rules[i]["Rear Charge"][1].get() == 0:
+                rules[i]["Rear Charge"][2].set(False)
+            if rules[i]["Flanking"][1].get() == 0:
+                rules[i]["Flanking"][2].set(False)
+        
+        return (True, "tie")
     
     
 class wincounter:
@@ -1147,9 +1187,11 @@ def sim():
         for i in range(2):
             #this will represent numbers of wounds left, not models
             num[i][0]=num[i][0] * int(stats[i]["W"].get())
-            #reset frenzy-type bonus
+            #reset loosable rules (frenzy, flank, rear)
             rules[i]["Until-Loss Attack Bonus"][2].set(True)
             mountRules[i]["Until-Loss Attack Bonus"][2].set(True)
+            rules[i]["Flanking"][2].set(True)
+            rules[i]["Rear Charge"][2].set(True)
             #don't need armor and ward for temp changes
             for r in mountRerolls:
                 realRerolls[i]["unit"][r] = (rules[i][r][0].get(), rules[i][r][1].get())
@@ -1202,6 +1244,7 @@ def sim():
             if debug:
                 print outcome
             if not outcome[0]:
+            # someone lost
                 a = (0 if outcome[1] else 1)
                 for r in range(i, roundcount):
                     resultPerRound[a][r] += 1
@@ -1213,6 +1256,7 @@ def sim():
                 results[not outcome[1]].e_left += num[outcome[1]][0]                
                 break
             else:
+            #tie
                 resultPerRound[2][i] += 1
                 resultPerRound_individual[2][i] += 1
                 survivalChance[0][i] += 1
@@ -1544,6 +1588,8 @@ def ttip():
         ToolTip.createToolTip(ruleLabels[i]["Until-Loss Attack Bonus"], "E.g. Frenzy")
         ToolTip.createToolTip(ruleLabels[i]["Impact Hits"], "Number of dice, size of dice, static attacks (e.g. scythes), and strength of attacks")
         ToolTip.createToolTip(ruleLabels[i]["Healing"], "Number of dice, size of dice, static wounds, and probability of happening")
+        ToolTip.createToolTip(ruleLabels[i]["Flanking"], "Leave 0 if the enemy can combat reform. number of attacks is wrong (calculated as in rear charge)")
+        ToolTip.createToolTip(ruleLabels[i]["Rear Charge"], "Leave 0 if enemy can combat reform. For any other value, unit will stay at the rear regardless of outcome.")
     #---------------------------------------------------
 
     
