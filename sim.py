@@ -759,7 +759,7 @@ def setTurnOrder(turn):
 #
 # Returns: number of attacks
 def getAttacks(unit, losses, attackType, turn):
-    if num[unit][0] == 0 or num[unit][1] == 0:
+    if num[unit][0] <= 0 or num[unit][1] <= 0:
         return 0
     if debug: print attackType
             
@@ -1004,8 +1004,16 @@ def getWounds(attacker, attacks, cstats, rules):
 #turn: number of the curent round
 #
 #return ([id of the looser], [amount lost by], [if looser is steadfast], [rank bonus of the looser])
+#return 0 if tie
 def combatResolution(kills, turn):
     global resultText
+    if num[0][0] <= 0:
+        if num[1][0] <= 0:
+            return 0
+        else:
+            return (0, 0, False, 0)
+    elif num[1][0] <= 0:
+        return (1, 0, False, 0)
     result = [kills[0], kills[1]]
     for i in range(2):
         if rules[i]["Static CR"][0].get():
