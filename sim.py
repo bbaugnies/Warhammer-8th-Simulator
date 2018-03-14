@@ -32,7 +32,7 @@ resultText = ""
 itercount = 10000
 roundcount = 12
 #In debug mode, only do one round and activate console logging
-debug = True
+debug = False
 if debug:
     itercount = 1
     roundcount = 1
@@ -315,7 +315,6 @@ def populate(frame, unitFrames, mountFrames):
         #Impact hits get their own thing
         ruleLabels[j]["Impact Hits"] = Label(unitFrames[j], text="Impact Hits")
         ruleLabels[j]["Impact Hits"].grid(row=nextRow, column=0, columnspan=nstats//3, sticky=W)
-        #Label(unitFrames[j], text="Impact Hits").grid(row=nextRow , column=0, columnspan=nstats//3, sticky=W)
         rules[j]["Impact Hits"]={
             "active": BooleanVar(unitFrames[j]),
             "dAmount": IntVar(unitFrames[j]),
@@ -337,7 +336,6 @@ def populate(frame, unitFrames, mountFrames):
         #Healing (same format as Impact Hits)
         ruleLabels[j]["Healing"] = Label(unitFrames[j], text="Healing")
         ruleLabels[j]["Healing"].grid(row=nextRow, column=0, columnspan=nstats//3, sticky=W)
-        #Label(unitFrames[j], text="Healing").grid(row=nextRow , column=0, columnspan=nstats//3, sticky=W)
         rules[j]["Healing"]={
             "active": BooleanVar(unitFrames[j]),
             "dAmount": IntVar(unitFrames[j]),
@@ -355,6 +353,27 @@ def populate(frame, unitFrames, mountFrames):
         Entry(unitFrames[j], textvariable=rules[j]["Healing"]["prob"], width=2).grid(row=nextRow, column=nstats//3+8)
         
         nextRow += 1
+        
+        #Attacks on death
+        ruleLabels[j]["Attacks On Death"] = Label(unitFrames[j], text="Attacks On Death")
+        ruleLabels[j]["Attacks On Death"].grid(row=nextRow, column=0, columnspan=nstats//3, sticky=W)
+        rules[j]["Attacks On Death"]={
+            "active": BooleanVar(unitFrames[j]),
+            "amount": IntVar(unitFrames[j]),
+            "to-hit": IntVar(unitFrames[j]),
+            "strength": IntVar(unitFrames[j]),
+            "immediate": BooleanVar(unitFrames[j])
+        }
+        Checkbutton(unitFrames[j], variable=rules[j]["Attacks On Death"]["active"]).grid(row=nextRow, column=nstats//3+1)
+        Entry(unitFrames[j], textvariable=rules[j]["Attacks On Death"]["amount"], width=2).grid(row=nextRow, column=nstats//3+2)  
+        Label(unitFrames[j], text="I").grid(row=nextRow, column=nstats//3+3)
+        Checkbutton(unitFrames[j], variable=rules[j]["Attacks On Death"]["immediate"]).grid(row=nextRow, column=nstats//3+4)   
+        Label(unitFrames[j], text="To-Hit").grid(row=nextRow, column=nstats//3+5)
+        Entry(unitFrames[j], textvariable=rules[j]["Attacks On Death"]["to-hit"], width=2).grid(row=nextRow, column=nstats//3+6)
+        Label(unitFrames[j], text="S").grid(row=nextRow, column=nstats//3+7)
+        Entry(unitFrames[j], textvariable=rules[j]["Attacks On Death"]["strength"], width=2).grid(row=nextRow, column=nstats//3+8)
+        
+        nextRow += 1
         mountTabRow+=len(mountDiceRules)+1 
         Label(unitFrames[j], text="Reroll rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
         Label(mountFrames[j], text="Reroll rules:").grid(row=nextRow, sticky=W, columnspan=nstats*2)
@@ -362,7 +381,6 @@ def populate(frame, unitFrames, mountFrames):
         for i in range(len(rerolls)):
             ruleLabels[j][rerolls[i]] = Label(unitFrames[j], text=rerolls[i])
             ruleLabels[j][rerolls[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            #Label(unitFrames[j], text=rerolls[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             rules[j][rerolls[i]]=(BooleanVar(unitFrames[j]), StringVar(unitFrames[j]))
             Checkbutton(unitFrames[j], variable=rules[j][rerolls[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
             apply(OptionMenu, (unitFrames[j], rules[j][rerolls[i]][1]) + tuple([rerollOptions[0]]+rerollOptions)).grid(row=nextRow+1+i, column=nstats//3+2, sticky = W, columnspan=nstats//3)
@@ -370,7 +388,6 @@ def populate(frame, unitFrames, mountFrames):
         for i in range(len(mountRerolls)):
             mountRuleLabels[j][mountRerolls[i]] = Label(mountFrames[j], text=mountRerolls[i])
             mountRuleLabels[j][mountRerolls[i]].grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
-            #Label(mountFrames[j], text=mountRerolls[i]).grid(row=nextRow+1+i, column=0, columnspan=nstats//3, sticky=W)
             mountRules[j][mountRerolls[i]]=(BooleanVar(mountFrames[j]), StringVar(mountFrames[j]))
             Checkbutton(mountFrames[j], variable=mountRules[j][mountRerolls[i]][0]).grid(row=nextRow+1+i, column=nstats//3+1)
             apply(OptionMenu, (mountFrames[j], mountRules[j][mountRerolls[i]][1]) + tuple([rerollOptions[0]]+rerollOptions)).grid(row=nextRow+1+i, column=nstats//3+2, sticky = W, columnspan=nstats//3)
@@ -461,6 +478,13 @@ def cli_setup():
             "dSize": fakeIntVar(),
             "static": fakeIntVar(),
             "prob": fakeIntVar()
+        }
+        rules[j]["Attacks On Death"]={
+            "active": fakeBoolVar(),
+            "amount": fakeIntVar(),
+            "to-hit": fakeIntVar(),
+            "strength": fakeIntVar(),
+            "immediate": fakeBoolVar()
         }
         
         for i in range(len(rerolls)):
@@ -654,7 +678,7 @@ def getStats(turn):
 #Sets the global var turnOrder to contain the ordered list of attackers
 #Order is a nested list. Each top-level entry is a list of units attacking at the same time
 #Each inner entry contains the ID and attack type
-#(Unit, Mount, Stomp, Thunderstomp, Impact Hits)
+#(Unit, Mount, Stomp, Thunderstomp, Impact Hits, Death Attack)
 def setTurnOrder(turn):
     global turnOrder
     global resultText
@@ -663,26 +687,48 @@ def setTurnOrder(turn):
     
     #Create Temp list, which has ini/mod in addition to other fields.
     #mod = 200 for impact, 100 for ASF, -100 for ASL
+    #Attacks On Death go at -1 of the opponent's attacks
     for i in range(2):
-        ini = stats[i]["I"].get()
+        hasAoD = rules[not i]["Attacks On Death"]["active"].get() and rules[not i]["Attacks On Death"]["immediate"].get()
+        other = 0 if i else 1
+        ini = stats[i]["I"].get()*10
         mod = (rules[i]["Always Strikes First"].get() - rules[i]["Always Strikes Last"].get()) * 100
-        if mod != 0:    tempOrder.append((mod, i, "Unit"))
-        else:           tempOrder.append((ini, i, "Unit"))
+        if mod != 0:
+            tempOrder.append((mod, i, "Unit"))
+            if hasAoD:
+                tempOrder.append((mod-1, other, "Death Attack"))
+        else:
+            tempOrder.append((ini, i, "Unit"))
+            if hasAoD:
+                tempOrder.append((ini-1, other, "Death Attack"))
             
         if rules[i]["Mounted"].get():
-            ini = mountStats[i]["I"].get()
+            ini = mountStats[i]["I"].get() * 10
             mod = (mountRules[i]["Always Strikes First"].get() - mountRules[i]["Always Strikes Last"].get()) * 100
-            if mod != 0:    tempOrder.append((mod, i, "Mount"))
-            else:           tempOrder.append((mountStats[i]["I"].get(), i, "Mount"))
+            if mod != 0:
+                tempOrder.append((mod, i, "Mount"))
+                if hasAoD:
+                    tempOrder.append((mod-1, other, "Death Attack"))
+            else:
+                tempOrder.append((ini, i, "Mount"))
+                if hasAoD:
+                    tempOrder.append((ini-1, other, "Death Attack"))
         
         if rules[i]["Stomp"].get():
             tempOrder.append((-100, i, "Stomp"))
+            if hasAoD:
+                tempOrder.append((-101, other, "Death Attack"))
         
         if rules[i]["Thunderstomp"].get():
             tempOrder.append((-100, i, "Thunderstomp"))
+            if hasAoD:
+                tempOrder.append((-101, other, "Death Attack"))
             
         if rules[i]["Impact Hits"]["active"].get() and turn == 0:
             tempOrder.append((200, i, "Impact Hits"))
+            
+        if rules[not i]["Attacks On Death"]["active"].get() and not rules[not i]["Attacks On Death"]["immediate"].get():
+            tempOrder.append((-200, other, "Death Attack"))
             
     #Sort on ini/mod, group by equal value, and drop ini/mod
     tempOrder = sorted(tempOrder, key=lambda unit: unit[0], reverse=True)
@@ -717,6 +763,7 @@ def getAttacks(unit, losses, attackType, turn):
         return 0
     if debug: print attackType
             
+    #First calculate Attacks per model
     if attackType == "Unit":
         apm = stats[unit]["A"].get()
         if rules[unit]["1st Turn Attack Bonus"][0].get() and turn == 0:
@@ -735,6 +782,7 @@ def getAttacks(unit, losses, attackType, turn):
         apm = 0
     else: apm = 1
         
+    # Calculate number of units that can hit on the first rank
     available = int(num[unit][0]) - losses
     available = int(ceil(available/stats[unit]["W"].get()))
     av_enemy = int(ceil(num[not unit][0] / stats[not unit]["W"].get()))
@@ -1091,6 +1139,7 @@ def fightRound(roundn, cstats, mstats):
     kills =[0, 0]
     attacks = [0, 0]
     first = turnOrder[0][0][0] # =ID of first unit in first turn
+    lastOrderKills = [0, 0]
     for order in turnOrder:
         orderKills = [0, 0]
         orderAttacks = [0, 0]
@@ -1103,7 +1152,6 @@ def fightRound(roundn, cstats, mstats):
             r[unit[0]] = dummyrules
             r[not unit[0]] = rules[not unit[0]]
             
-            orderAttacks[unit[0]] += att
             k = 0
             if unit[1] == "Unit":
                 k = getWounds(unit[0], att, cstats, rules)
@@ -1113,22 +1161,36 @@ def fightRound(roundn, cstats, mstats):
                 mRules[not unit[0]] = rules[not unit[0]]
                 k = getWounds(unit[0], att, mstats, mRules)
                 
+            elif unit[1] == "Death Attack":
+                att = lastOrderKills[not unit[0]] if rules[unit[0]]["Attacks On Death"]["immediate"].get() else kills[not unit[0]]
+                att = att * rules[unit[0]]["Attacks On Death"]["amount"].get()
+                s = deepcopy(cstats)
+                if rules[unit[0]]["Attacks On Death"]["to-hit"].get() != 0:
+                    s[unit[0]]["To-Hit"] = rules[unit[0]]["Attacks On Death"]["to-hit"].get()
+                if rules[unit[0]]["Attacks On Death"]["strength"].get() != 0:
+                    s[unit[0]]["To-Wound"] = toWound(unit[0], rules[unit[0]]["Attacks On Death"]["strength"].get(), stats[not unit[0]]["T"].get(), rules)
+                    s[not unit[0]]["Save"] = saveTarget(not unit[0], stats[not unit[0]]["AS"].get(), rules[unit[0]]["Attacks On Death"]["strength"].get(), rules)
+                k = getWounds(unit[0], att, s, rules)
+                
+                
             #TODO refactor this to have getStats used here
             elif unit[1] == "Impact Hits":
                 #Re-evaluate combat stats
                 #set auto-hit (to-hit = 1), new to-wound, and adapt ennemy's save
                 s = deepcopy(cstats)
                 s[unit[0]]["To-Hit"] = 1
-                #to-wound uses strength provided if != 0, mount's if mounted, or unit's
+                #to-wound and save uses strength provided if != 0, mount's if mounted, or unit's                
+                #for save, unit[0] is considered "defender" => use r so no armor piercing/ignore save
                 if rules[unit[0]]["Impact Hits"]["strength"].get() != 0:
-                    s[unit[0]]["To-Wound"] = toWound(unit[0], rules[unit[0]]["Impact Hits"]["strength"].get(), stats[not unit[0]]["T"].get(), r)
+                    s[unit[0]]["To-Wound"] = toWound(unit[0], rules[unit[0]]["Impact Hits"]["strength"].get(), stats[not unit[0]]["T"].get(), r)                    
+                    s[not unit[0]]["Save"] = saveTarget(not unit[0], stats[not unit[0]]["AS"].get(), rules[unit[0]]["Impact Hits"]["strength"].get(), r)
                 elif rules[unit[0]]["Mounted"].get():
                     s[unit[0]]["To-Wound"] = mstats[unit[0]]["To-Wound"]
+                    s[unit[0]]["Save"] = mstats[unit[0]]["Save"]
                 else:
                     s[unit[0]]["To-Wound"] = cstats[unit[0]]["To-Wound"]
+                    s[unit[0]]["Save"] = cstats[unit[0]]["Save"]
 
-                #for save, unit[0] is considered "defender" => use r so no armor piercing/ignore save
-                s[not unit[0]]["Save"] = saveTarget(not unit[0], stats[not unit[0]]["AS"].get(), rules[unit[0]]["Impact Hits"]["strength"].get(), r)
                 k = getWounds(unit[0], att, s, r)
             #Stomp and Thunderstomp
             else:
@@ -1142,6 +1204,8 @@ def fightRound(roundn, cstats, mstats):
                 s[not unit[0]]["Save"] = saveTarget(not unit[0], stats[not unit[0]]["AS"].get(), strength, r)
                 k = getWounds(unit[0], att, s, r)
                 
+            orderAttacks[unit[0]] += att
+                
             orderKills[unit[0]] += k
             resultText +=   ((unit[1]+ " of ") if unit[1] != "Unit" else "")
             resultText +=   names[unit[0]].get() + " does " + str(round(att, 2))
@@ -1150,6 +1214,7 @@ def fightRound(roundn, cstats, mstats):
         for i in range(2):
             kills[i]+=orderKills[i]
             attacks[i]+=orderAttacks[i]
+            lastOrderKills[i] = orderKills[i]
         
         
     resultText += "____________________________________________\n"    
@@ -1415,10 +1480,16 @@ def saveUnit(n):
         if rules[n][i][0].get():
             txt +=i +"("+str(rules[n][i][1].get())+";"+ str(rules[n][i][2].get()) +"),"
     txt += "\n"
-    #impact hits
-    for i in ["Impact Hits"]:
+    #all weird rules
+    for i in ["Impact Hits", "Healing", "Attacks On Death"]:
         if rules[n][i]["active"].get():
-            txt += i+"("+str(rules[n][i]["dAmount"].get())+";"+str(rules[n][i]["dSize"].get())+";"+str(rules[n][i]["staticHits"].get())+";"+str(rules[n][i]["strength"].get())+")"
+            txt += i+"("
+            keys = rules[n][i].keys()
+            keys.sort()
+            keys.remove("active")
+            for k in keys:
+                txt += str(rules[n][i][k].get())+";"
+            txt = txt[:-1] + "),"
     txt += "\n"
     #rerolls
     for i in rerolls:
@@ -1536,17 +1607,18 @@ def cli_load(n, unitfile):
             v = m[1].split(";")
             rules[n][m[0]][1].set(v[0])
             rules[n][m[0]][2].set(v[1])
-    #impact hits
+    #all weird rules
     l = f.readline()[:-1]
     if l!= "":
-        matches = findall("(.*?)\(([\d;]+)\)", l)
+        matches = findall("(.*?)\((.+)\),?", l)
         for m in matches:
             rules[n][m[0]]["active"].set(True)
             v = m[1].split(";")
-            rules[n][m[0]]["dAmount"].set(v[0])
-            rules[n][m[0]]["dSize"].set(v[1])
-            rules[n][m[0]]["staticHits"].set(v[2])
-            rules[n][m[0]]["strength"].set(v[3])            
+            keys = rules[n][m[0]].keys()
+            keys.sort()
+            keys.remove("active")
+            for i in range(len(keys)):
+                rules[n][m[0]][keys[i]].set(v[i])   
     #rerolls
     l = f.readline()[:-1]
     if l != "":
@@ -1608,12 +1680,10 @@ def ttip():
     for i in range(2):
         ToolTip.createToolTip(ruleLabels[i]["BSB"], "Only affects rerolls, add static CR if needed")
         ToolTip.createToolTip(ruleLabels[i]["Bonus Attack On Wound"], "E.g. Red Fury")
-        ToolTip.createToolTip(ruleLabels[i]["Flanking"], "Not yet implemented")
         ToolTip.createToolTip(ruleLabels[i]["Has Champion"], "Adds one attack")
         ToolTip.createToolTip(ruleLabels[i]["Immune to Psychology"], "Only blocks Fear")
         ToolTip.createToolTip(ruleLabels[i]["Monstrous Support"], "Allows up to three support attacks per model")
         ToolTip.createToolTip(ruleLabels[i]["Mounted"], "Unlocks Mount tab and enables use of the mount profile\nMounts stats are ignored without this")
-        ToolTip.createToolTip(ruleLabels[i]["Rear Charge"], "Not yet implemented")
         ToolTip.createToolTip(ruleLabels[i]["Stomp"], "Uses Mount strength if Mounted")
         ToolTip.createToolTip(ruleLabels[i]["Auto-wound"], "Emulates Poison. Value is the dice roll required to proc (usually 6)")
         ToolTip.createToolTip(ruleLabels[i]["Bonus Attack On Hit"], "E.g. Predation. Value is the dice roll required to proc")
@@ -1632,6 +1702,7 @@ def ttip():
         ToolTip.createToolTip(ruleLabels[i]["Rear Charge"], "Leave 0 if enemy can combat reform. For any other value, unit will stay at the rear regardless of outcome.")
         ToolTip.createToolTip(ruleLabels[i]["Minimum To-Hit"], "Attacks will always hit with this score unless a lower value is needed (can be set to 1 to auto-hit)")
         ToolTip.createToolTip(ruleLabels[i]["Minimum To-Wound"], "Hits will always wound with this score unless a lower value is needed (can be set to 2 to auto-hit)")
+        ToolTip.createToolTip(ruleLabels[i]["Attacks On Death"], "Extra attack when a unit dies. [Amount], [I]: is the attack immediately after death (or at end of round), [To-hit]: unit value if left 0, [S]: unit value if left 0. Procs on wounds -> doesn't work for multi-wound models")
     #---------------------------------------------------
 
     
