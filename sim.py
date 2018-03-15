@@ -22,9 +22,21 @@ import sys
 
 
 '''
-flanking and rear: handled loss of the rule, still need to implement effects
 '''
 
+
+
+
+parser = argparse.ArgumentParser(description='Warhammer simulator')
+parser.add_argument("--unit1", help="Name of first unit")
+parser.add_argument("--s1", type = int, help="Size of first unit")
+parser.add_argument("--r1", type = int, help="Size of first unit's rank")
+parser.add_argument("--unit2", help="Name of second unit")
+parser.add_argument("--s2", type = int, help="Size of second unit")
+parser.add_argument("--r2", type = int, help="Size of second unit's rank")
+parser.add_argument("--iter", type = int, help="Number of iterations to simulate")
+
+args = parser.parse_args()
 
 num = []
 turnOrder = []
@@ -35,19 +47,7 @@ roundcount = 12
 debug = False
 if debug:
     itercount = 1
-    roundcount = 1
-
-
-parser = argparse.ArgumentParser(description='Warhammer simulator')
-parser.add_argument("--unit1")
-parser.add_argument("--s1", type = int)
-parser.add_argument("--r1", type = int)
-parser.add_argument("--unit2")
-parser.add_argument("--s2", type = int)
-parser.add_argument("--r2", type = int)
-parser.add_argument("--iter", type = int)
-
-args = parser.parse_args()
+    roundcount = 3
 
 class fakeIntVar:
     state = 0
@@ -758,7 +758,7 @@ def setTurnOrder(turn):
 #        (only non-0 if the unit attacks second)
 #
 # Returns: number of attacks
-def getAttacks(unit, losses, attackType, turn):
+def getAttacks(unit, attackType, turn):
     if num[unit][0] <= 0 or num[unit][1] <= 0:
         return 0
     if debug: print attackType
@@ -783,7 +783,7 @@ def getAttacks(unit, losses, attackType, turn):
     else: apm = 1
         
     # Calculate number of units that can hit on the first rank
-    available = int(num[unit][0]) - losses
+    available = int(num[unit][0])
     available = int(ceil(available/stats[unit]["W"].get()))
     av_enemy = int(ceil(num[not unit][0] / stats[not unit]["W"].get()))
     
@@ -1132,7 +1132,14 @@ for i in ruleOptions+armyRules:
 for i in valueRules + diceRules + rerolls:
     dummyrules[i] = [fakeBoolVar()]
        
-
+def modelsKilled(cur, wounds, start):    
+    beg = int(ceil(int(start)/wounds))
+    end = int(ceil(int(cur)/wounds))
+    if debug:
+        print "started with {} ({}), ended with {} ({}). Lost {}".format(start, beg, cur, end, beg-end)
+    return beg - end
+    
+    
 #Resolves one round of combat
 #roundn: the number of the round
 #stats: the ordered combatStats of both units
@@ -1148,12 +1155,14 @@ def fightRound(roundn, cstats, mstats):
     attacks = [0, 0]
     first = turnOrder[0][0][0] # =ID of first unit in first turn
     lastOrderKills = [0, 0]
+    aliveSoR = [num[0][0], num[1][0]]
+    aliveSoLO = [num[0][0], num[1][0]]
     for order in turnOrder:
         orderKills = [0, 0]
         orderAttacks = [0, 0]
         resultText += "---------\n"
         for unit in order:
-            att = getAttacks(unit[0], kills[not unit[0]], unit[1], roundn)
+            att = getAttacks(unit[0], unit[1], roundn)
             #r = rule dictionary for dummy vs. unit (Impact hits and [thunder]Stomp)
             #mRules = rule dictionary for mount vs. unit
             r= [dict(), dict()]
@@ -1170,7 +1179,7 @@ def fightRound(roundn, cstats, mstats):
                 k = getWounds(unit[0], att, mstats, mRules)
                 
             elif unit[1] == "Death Attack":
-                att = lastOrderKills[not unit[0]] if rules[unit[0]]["Attacks On Death"]["immediate"].get() else kills[not unit[0]]
+                att = modelsKilled(num[unit[0]][0], stats[unit[0]]["W"].get(), aliveSoLO[unit[0]] if rules[unit[0]]["Attacks On Death"]["immediate"].get() else aliveSoR[unit[0]])
                 att = att * rules[unit[0]]["Attacks On Death"]["amount"].get()
                 s = deepcopy(cstats)
                 if rules[unit[0]]["Attacks On Death"]["to-hit"].get() != 0:
@@ -1218,21 +1227,21 @@ def fightRound(roundn, cstats, mstats):
             resultText +=   ((unit[1]+ " of ") if unit[1] != "Unit" else "")
             resultText +=   names[unit[0]].get() + " does " + str(round(att, 2))
             resultText +=   " attacks, for " + str(round(k, 2)) + " wounds\n"
+            
+            #end Unit
                 
         for i in range(2):
             kills[i]+=orderKills[i]
             attacks[i]+=orderAttacks[i]
-            lastOrderKills[i] = orderKills[i]
+            aliveSoLO[i] = num[i][0]
+            num[i][0] = num[i][0] - orderKills[not i]
+        #end Order
         
         
     resultText += "____________________________________________\n"    
     resultText += names[first].get()+ " does "+ str(round(attacks[first], 2))+ " attacks, for "+ str(round(kills[first], 2)) + " wounds\n"
     resultText += names[not first].get()+ " does "+ str(round(attacks[not first],2))+ " attacks, for "+ str(round(kills[not first],2)) + " wounds\n"
     
-    for i in range(0, 2):
-        cur = num[i][0]
-        cur = cur - kills[not i]
-        num[i][0]= cur
     cr = combatResolution(kills, roundn)
     # cr[0] = id of looser, cr == 0 if tie
     if cr != 0:        
@@ -1692,13 +1701,14 @@ def ttip():
         ToolTip.createToolTip(ruleLabels[i]["Immune to Psychology"], "Only blocks Fear")
         ToolTip.createToolTip(ruleLabels[i]["Monstrous Support"], "Allows up to three support attacks per model")
         ToolTip.createToolTip(ruleLabels[i]["Mounted"], "Unlocks Mount tab and enables use of the mount profile\nMounts stats are ignored without this")
-        ToolTip.createToolTip(ruleLabels[i]["Stomp"], "Uses Mount strength if Mounted")
+        ToolTip.createToolTip(ruleLabels[i]["Stomp"], "Uses Mount strength if Mounted. Doesn't cancel parry save")
+        ToolTip.createToolTip(ruleLabels[i]["Thunderstomp"], "Uses Mount strength if Mounted. Doesn't cancel parry save")
         ToolTip.createToolTip(ruleLabels[i]["Auto-wound"], "Emulates Poison. Value is the dice roll required to proc (usually 6)")
         ToolTip.createToolTip(ruleLabels[i]["Bonus Attack On Hit"], "E.g. Predation. Value is the dice roll required to proc")
         ToolTip.createToolTip(ruleLabels[i]["Bonus Hit On Hit"], "E.g. Nurgle Locus of Contagion. Value is the dice roll required to proc")
         ToolTip.createToolTip(ruleLabels[i]["Fear"], "Value is modifier applied to Fear test (usually 0)")
         ToolTip.createToolTip(ruleLabels[i]["Fight in Extra Ranks"] , "Applies all the time, not only when not charging")
-        ToolTip.createToolTip(ruleLabels[i]["Killing Blow"], "Value is dice roll required to proc (usually 6)")
+        ToolTip.createToolTip(ruleLabels[i]["Killing Blow"], "Value is dice roll required to proc (usually 6). Doesn't cancel Regeneration")
         ToolTip.createToolTip(ruleLabels[i]["Static CR"], "CR Bonus applied to every round e.g. Banner or BSB")
         ToolTip.createToolTip(ruleLabels[i]["To-Hit Penalty"], "Penalty applied when trying to hit this unit")
         ToolTip.createToolTip(ruleLabels[i]["To-Wound Penalty"], "Penalty applied when trying to wound this unti")
@@ -1709,8 +1719,8 @@ def ttip():
         ToolTip.createToolTip(ruleLabels[i]["Flanking"], "Leave 0 if the enemy can combat reform. number of attacks is wrong (calculated as in rear charge)")
         ToolTip.createToolTip(ruleLabels[i]["Rear Charge"], "Leave 0 if enemy can combat reform. For any other value, unit will stay at the rear regardless of outcome.")
         ToolTip.createToolTip(ruleLabels[i]["Minimum To-Hit"], "Attacks will always hit with this score unless a lower value is needed (can be set to 1 to auto-hit)")
-        ToolTip.createToolTip(ruleLabels[i]["Minimum To-Wound"], "Hits will always wound with this score unless a lower value is needed (can be set to 2 to auto-hit)")
-        ToolTip.createToolTip(ruleLabels[i]["Attacks On Death"], "Extra attack when a unit dies. [Amount], [I]: is the attack immediately after death (or at end of round), [To-hit]: unit value if left 0, [S]: unit value if left 0. Procs on wounds -> doesn't work for multi-wound models")
+        ToolTip.createToolTip(ruleLabels[i]["Minimum To-Wound"], "Hits will always wound with this score unless a lower value is needed (can be set to 1 to auto-wound)")
+        ToolTip.createToolTip(ruleLabels[i]["Attacks On Death"], "Extra attack when a unit dies. [Amount], [I]: is the attack immediately after death (or at end of round), [To-hit]: unit value if left 0, [S]: unit value if left 0")
     #---------------------------------------------------
 
     
