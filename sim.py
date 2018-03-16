@@ -47,7 +47,7 @@ roundcount = 12
 debug = False
 if debug:
     itercount = 1
-    roundcount = 3
+    roundcount = 12
 
 class fakeIntVar:
     state = 0
@@ -1258,14 +1258,12 @@ def fightRound(roundn, cstats, mstats):
         bt_result = breakTest(cr, kills[not cr[0]])
         # if reform ld test is passed, opponent looses flank/rear bonus
         if bt_result[1]:
-            if debug:
-                resultText +=  "Reforming\n"
             if rules[not cr[0]]["Rear Charge"][1].get() == 0:
                 rules[not cr[0]]["Rear Charge"][2].set(False)
             if rules[not cr[0]]["Flanking"][1].get() == 0:
                 rules[not cr[0]]["Flanking"][2].set(False)
             
-        return (bt_result[0], cr[0])
+        return (bt_result[0], cr[0], cr[1])
     else:
         #both can reform, loose flank and rear
         for i in range(2):
@@ -1274,7 +1272,7 @@ def fightRound(roundn, cstats, mstats):
             if rules[i]["Flanking"][1].get() == 0:
                 rules[i]["Flanking"][2].set(False)
         
-        return (True, "tie")
+        return (True, "tie", 0)
     
     
 class wincounter:
@@ -1294,9 +1292,11 @@ def sim():
     roundReached = numpy.zeros(roundcount)
     alivePerRound = numpy.zeros((roundcount+1)*2).reshape(2, roundcount+1)
     woundsPerRound = numpy.zeros(roundcount*2).reshape(2, roundcount)
+    woundsPerRound_weighted = numpy.zeros(roundcount*2).reshape(2, roundcount)
     resultPerRound = numpy.zeros(roundcount*3).reshape(3, roundcount)
     resultPerRound_individual = numpy.zeros(roundcount*3).reshape(3, roundcount)
     survivalChance = numpy.zeros(roundcount*2).reshape(2, roundcount)
+    combatResolutionG = numpy.zeros(roundcount)
     
     results = [wincounter(), wincounter(), wincounter()]
     alivePerRound[0][0] = numbers[0][0].get() * stats[0]["W"].get()
@@ -1365,8 +1365,16 @@ def sim():
                 alivePerRound[u][i+1] += num[u][0]
             if debug:
                 print outcome
+            #1 or "tie"
+            if outcome[1]:
+                combatResolutionG[i] -= outcome[2]
+            else:
+                combatResolutionG[i] += outcome[2]
+                
+                
             if not outcome[0]:
             # someone lost
+                #a = winner
                 a = (0 if outcome[1] else 1)
                 for r in range(i, roundcount):
                     resultPerRound[a][r] += 1
@@ -1421,8 +1429,11 @@ def sim():
     for u in range(2):
         for i in range(roundcount):
             alivePerRound[u][i+1] = 0 if roundReached[i] == 0 else alivePerRound[u][i+1]/roundReached[i]
+            woundsPerRound_weighted[u][i] = woundsPerRound[u][i]/(1 if roundReached[i] == 0 else roundReached[i])
             woundsPerRound[u][i] = woundsPerRound[u][i]/itercount
+            woundsPerRound_weighted[u][i] = woundsPerRound_weighted[u][i] - woundsPerRound[u][i]
             survivalChance[u][i] = survivalChance[u][i]/itercount*100
+            combatResolutionG[i] = combatResolutionG[i]/(1 if roundReached[i] == 0 else roundReached[i])
     for u in range(3):
         for i in range(roundcount):
             resultPerRound[u][i] = resultPerRound[u][i]/itercount*100
@@ -1435,7 +1446,9 @@ def sim():
     plt.ylabel("Wounds remaining")
     plt.subplot(322)
     plt.bar(wax1, woundsPerRound[1], 0.40, color="b")
+    plt.bar(wax1, woundsPerRound_weighted[1], 0.40, color="#3ce8fc", bottom=woundsPerRound[1])
     plt.bar(wax2, woundsPerRound[0], 0.40, color="r")
+    plt.bar(wax2, woundsPerRound_weighted[0], 0.40, color="#f75353", bottom=woundsPerRound[0])
     plt.ylabel("Wounds done in round")
     plt.subplot(323)
     plt.bar(axis, resultPerRound[0], 0.40, color="b", label = "{} wins".format(names[0]))
@@ -1451,7 +1464,12 @@ def sim():
     plt.subplot(325)
     plt.plot(axis, survivalChance[0], "b-")
     plt.plot(axis, survivalChance[1], "r-")
-    plt.ylabel("Change of surviving to this round")
+    plt.ylim(-0.1, 100.1)
+    plt.ylabel("Change of surviving this round")
+    plt.ion()
+    plt.subplot(326)
+    plt.plot(axis, combatResolutionG, "b-")
+    plt.ylabel("Combat Resolution")
     plt.ion()
     
     if len(sys.argv) == 1:
