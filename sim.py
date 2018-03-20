@@ -35,6 +35,11 @@ parser.add_argument("--unit2", help="Name of second unit")
 parser.add_argument("--s2", type = int, help="Size of second unit")
 parser.add_argument("--r2", type = int, help="Size of second unit's rank")
 parser.add_argument("--iter", type = int, help="Number of iterations to simulate")
+parser.add_argument("--debug", type = int, help="Use debug mode with X rounds")
+parser.add_argument("-c", "--cli", action="store_true", help="switch to CLI mode")
+
+cli_args = ["unit1", "s1", "r1", "unit2", "s2", "r2"]
+
 
 args = parser.parse_args()
 
@@ -1365,11 +1370,7 @@ def sim():
                 alivePerRound[u][i+1] += num[u][0]
             if debug:
                 print outcome
-            #1 or "tie"
-            if outcome[1]:
-                combatResolutionG[i] -= outcome[2]
-            else:
-                combatResolutionG[i] += outcome[2]
+            combatResolutionG[i] += outcome[2]
                 
                 
             if not outcome[0]:
@@ -1414,7 +1415,7 @@ def sim():
     resultText += str(results[2])
     resultText += "\n"
     
-    if len(sys.argv) == 1:
+    if not args.cli:
         resBox.set(resultText)
     
     
@@ -1433,13 +1434,14 @@ def sim():
             woundsPerRound[u][i] = woundsPerRound[u][i]/itercount
             woundsPerRound_weighted[u][i] = woundsPerRound_weighted[u][i] - woundsPerRound[u][i]
             survivalChance[u][i] = survivalChance[u][i]/itercount*100
-            combatResolutionG[i] = combatResolutionG[i]/(1 if roundReached[i] == 0 else roundReached[i])
     for u in range(3):
         for i in range(roundcount):
             resultPerRound[u][i] = resultPerRound[u][i]/itercount*100
             resultPerRound_individual[u][i] = 0 if roundReached[i] == 0 else resultPerRound_individual[u][i]/roundReached[i]*100
     for i in range(roundcount):
+        combatResolutionG[i] = combatResolutionG[i]/(1 if roundReached[i] == 0 else roundReached[i])
         roundReached[i] = roundReached[i]/itercount*100
+    maxCR = max(combatResolutionG, key = abs)
     plt.subplot(321)
     plt.plot(axis0, alivePerRound[0], "b-", label = names[0])
     plt.plot(axis0, alivePerRound[1], "r-", label = names[1])
@@ -1448,7 +1450,7 @@ def sim():
     plt.bar(wax1, woundsPerRound[1], 0.40, color="b")
     plt.bar(wax1, woundsPerRound_weighted[1], 0.40, color="#3ce8fc", bottom=woundsPerRound[1])
     plt.bar(wax2, woundsPerRound[0], 0.40, color="r")
-    plt.bar(wax2, woundsPerRound_weighted[0], 0.40, color="#f75353", bottom=woundsPerRound[0])
+    plt.bar(wax2, woundsPerRound_weighted[0], 0.40, color="#f79437", bottom=woundsPerRound[0])
     plt.ylabel("Wounds done in round")
     plt.subplot(323)
     plt.bar(axis, resultPerRound[0], 0.40, color="b", label = "{} wins".format(names[0]))
@@ -1464,15 +1466,17 @@ def sim():
     plt.subplot(325)
     plt.plot(axis, survivalChance[0], "b-")
     plt.plot(axis, survivalChance[1], "r-")
-    plt.ylim(-0.1, 100.1)
+    plt.ylim(-1, 101)
     plt.ylabel("Change of surviving this round")
     plt.ion()
     plt.subplot(326)
     plt.plot(axis, combatResolutionG, "b-")
     plt.ylabel("Combat Resolution")
+    plt.axhline(0, color='black')
+    plt.ylim(maxCR, -maxCR)
     plt.ion()
     
-    if len(sys.argv) == 1:
+    if not args.cli:
         plt.show()
     else:
         plt.savefig('foo.png', bbox_inches='tight')
@@ -1704,7 +1708,7 @@ def cli_load(n, unitfile):
             mountRules[n][m[0]][0].set(True)
             mountRules[n][m[0]][1].set(m[1])
     #toggle mount tab
-    if len(sys.argv) == 1:
+    if not args.cli:
         checkMount(n, "Mounted")
     
 
@@ -1748,7 +1752,17 @@ def main():
     global baseSizes
     global canvas
     global itercount
-    if len(sys.argv) == 1:
+    global roundcount
+    global debug
+    
+    if args.iter != None:
+        itercount = args.iter
+    if args.debug != None:
+        debug = True
+        roundcount = args.debug
+        itercount = 1
+        
+    if not args.cli:
         #Tkinter structures (Frames, notebooks, canvas...)
         root = tk.Tk()
 
@@ -1780,8 +1794,8 @@ def main():
         ttip()
         root.mainloop()
     else:
-        for arg in vars(args):
-            if (vars(args)[arg] == None and arg != "iter"):
+        for arg in cli_args:
+            if (vars(args)[arg] == None):
                 parser.error("Missing argument {}".format(arg))
         cli_setup()
         cli_load(0, args.unit1)
@@ -1790,8 +1804,6 @@ def main():
         numbers[0][1].set(args.r1)
         numbers[1][0].set(args.s2)
         numbers[1][1].set(args.r2)
-        if args.iter != None:
-            itercount = args.iter
         sim()
         print resultText
         
