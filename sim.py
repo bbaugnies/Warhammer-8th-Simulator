@@ -35,8 +35,8 @@ parser.add_argument("--unit2", help="Name of second unit")
 parser.add_argument("--s2", type = int, help="Size of second unit")
 parser.add_argument("--r2", type = int, help="Size of second unit's rank")
 parser.add_argument("--iter", type = int, help="Number of iterations to simulate")
-parser.add_argument("--debug", type = int, help="Use debug mode with X rounds")
-parser.add_argument("-c", "--cli", action="store_true", help="switch to CLI mode")
+parser.add_argument("--debug", type = int, help="Use debug mode with DEBUG rounds")
+parser.add_argument("-c", "--cli", action="store_true", help="Switch to CLI mode. Requires unit1/2, s1/2, and r1/2")
 
 cli_args = ["unit1", "s1", "r1", "unit2", "s2", "r2"]
 
@@ -52,7 +52,7 @@ roundcount = 12
 debug = False
 if debug:
     itercount = 1
-    roundcount = 12
+    roundcount = 1
 
 class fakeIntVar:
     state = 0
@@ -1441,7 +1441,8 @@ def sim():
     for i in range(roundcount):
         combatResolutionG[i] = combatResolutionG[i]/(1 if roundReached[i] == 0 else roundReached[i])
         roundReached[i] = roundReached[i]/itercount*100
-    maxCR = max(combatResolutionG, key = abs)
+    maxCR = abs(max(combatResolutionG, key = abs))
+    print maxCR
     plt.subplot(321)
     plt.plot(axis0, alivePerRound[0], "b-", label = names[0])
     plt.plot(axis0, alivePerRound[1], "r-", label = names[1])
@@ -1473,7 +1474,7 @@ def sim():
     plt.plot(axis, combatResolutionG, "b-")
     plt.ylabel("Combat Resolution")
     plt.axhline(0, color='black')
-    plt.ylim(maxCR, -maxCR)
+    plt.ylim(-maxCR, maxCR)
     plt.ion()
     
     if not args.cli:
