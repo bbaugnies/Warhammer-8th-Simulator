@@ -1,9 +1,9 @@
 Plaguebearers-fecundity
-3,4,4,1,2,1,7,7,4,13,
+3,4,4,1,2,1,7,7,5,13,
 0,0,0,0,
 25mm
 
-Auto-wound(6),Fear(0),Static CR(1),To-Hit Penalty(1),
+Auto-wound(6),Fear(0),Regeneration(4),Static CR(1),To-Hit Penalty(1),
 
 
 

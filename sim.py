@@ -22,6 +22,7 @@ import sys
 
 
 '''
+652 new cstats not being added properly
 '''
 
 
@@ -111,11 +112,10 @@ ruleOptions=["Always Strikes First", "Always Strikes Last", "Bonus Attack On Wou
 ruleOptions=sorted(ruleOptions)
 
 valueRules=["Auto-wound", "Armour Piercing", "Bonus Attack On Hit", "Bonus Hit On Hit", "Bonus To-Hit", "Bonus To-Wound", "Fear",
-    "Fight in Extra Ranks", "Killing Blow", "Minimum To-Hit", "Minimum To-Wound", "Static CR", "To-Hit Penalty", "To-Wound Penalty"]
+    "Fight in Extra Ranks", "Killing Blow", "Minimum To-Hit", "Minimum To-Wound", "Parry Save", "Regeneration", "Static CR", "To-Hit Penalty", "To-Wound Penalty"]
 valueRules=sorted(valueRules)
 
-tempRules = ["1st Turn Attack Bonus", "1st Turn Hit Rerolls", "1st Turn Resolution Bonus", "1st Turn Strength Bonus", "1st Turn Ward Bonus", "1st Turn Wound Rerolls", "Until-Loss Attack Bonus",
-    "Rear Charge", "Flanking" ]
+tempRules = ["1st Turn Attack Bonus", "1st Turn Hit Rerolls", "1st Turn Parry Bonus", "1st Turn Resolution Bonus", "1st Turn Strength Bonus", "1st Turn Ward Bonus", "1st Turn Wound Rerolls", "2nd Turn Extra Ranks", "Until-Loss Attack Bonus", "Rear Charge", "Flanking" ]
 tempRules = sorted(tempRules)
 
 diceRules=["Multiple Wounds", "Random Attacks"]
@@ -599,6 +599,7 @@ def saveTarget(i, aA, sD, rulesD):
     res = min(7, res)
     res = max(2, res)
     return res
+    
         
 
 #Return the combatStats of both units. Sets rerolls based on ASF
@@ -643,18 +644,22 @@ def getStats(turn):
         
         #To Wound
         s[i]["To-Wound"] = toWound(i, strength[i], stats[not i]["T"].get(), rules)
-        ms[i]["To-Wound"] = toWound(i, mountStats[i]["S"].get(), stats[not i]["T"].get(), mountRules)
+        ms[i]["To-Wound"] = toWound(i, mStrength[i], stats[not i]["T"].get(), mountRules)
         
         #Armor Save
         s[i]["Save"] = saveTarget(i, stats[i]["AS"].get(), strength[not i], rules)
         ms[i]["Save"] = saveTarget(i, stats[i]["AS"].get(), mStrength[not i], mountRules)        
         
+        s[i]["Normal Ward"] = (stats[i]["Wa"].get() if stats[i]["Wa"].get() > 0 else 7) - (rules[i]["1st Turn Ward Bonus"][1].get() if (rules[i]["1st Turn Ward Bonus"][0].get() and turn == 0) else 0)
+        ms[i]["Normal Ward"] = s[i]["Normal Ward"]
+        s[i]["Regen"] = rules[i]["Regeneration"][1].get() if rules[i]["Regeneration"][0].get() else 7
+        ms[i]["Regen"] = s[i]["Regen"]
+        s[i]["Parry"] = (rules[i]["Parry Save"][1].get() if rules[i]["Parry Save"][0].get() and not rules[i]["Until-Loss Attack Bonus"][2].get() else 7)
+        s[i]["Parry"] += rules[i]["1st Turn Parry Bonus"][1].get() if rules[i]["1st Turn Parry Bonus"][0].get() and turn == 0 else 0
+        ms[i]["Parry"] = s[i]["Parry"]
         #Ward Save
-        s[i]["Ward"] = stats[i]["Wa"].get() if stats[i]["Wa"].get() != 0 else 7
-        ms[i]["Ward"] = stats[i]["Wa"].get() if stats[i]["Wa"].get() != 0 else 7
-        if turn == 0:
-            if rules[i]["1st Turn Ward Bonus"][0].get() and turn == 0:
-                s[i]["Ward"] -= rules[i]["1st Turn Ward Bonus"][1].get()
+        s[i]["Ward"] = min(s[i]["Parry"], s[i]["Regen"], s[i]["Normal Ward"])
+        ms[i]["Ward"] = s[i]["Ward"]
         
     #This part is only usefull for rerolls, rest is taken care of by setTurnOrder
         s[i]["Priority"] = rules[i]["Always Strikes First"].get() - rules[i]["Always Strikes Last"].get()
@@ -828,6 +833,8 @@ def getAttacks(unit, attackType, turn):
         if int(num[unit][1])>=6 and rules[unit]["Monstrous Support"].get(): supportRanks+=1
         if rules[unit]["Fight in Extra Ranks"][0].get():
             supportRanks += rules[unit]["Fight in Extra Ranks"][1].get()
+        if rules[unit]["2nd Turn Extra Ranks"][0].get() and turn != 0:
+            supportRanks += rules[unit]["2nd Turn Extra Ranks"][1].get()
         while supportRanks > 0 and available > 0:
             rankAttacks = int(min(available, int(num[unit][1]), widthConstraint)) * min(1, stats[unit]["A"].get())
             if rules[unit]["Monstrous Support"].get():            
@@ -960,6 +967,9 @@ def attack(attacker, cstats, rules, a_type, gen=True):
     #CAREFUL ">=" only works because there are no skips on saves (no "lt" needed")
     if roll_to_rule[a_type]["skip-next"] != None and r >= skip:
         next = roll_to_rule[a_type]["skip-next"]
+        # this was a killing blow, don't permit regen save
+        if a_type == "wound":
+            cstats[not attacker]["Ward"] = min(cstats[not attacker]["Normal Ward"], cstats[not attacker]["Parry"])
     else:
         next = roll_to_rule[a_type]["next"]
 
@@ -978,6 +988,8 @@ def attack(attacker, cstats, rules, a_type, gen=True):
             else:
                 result += 1
                 
+    #re-enable regen for generated attacks
+    cstats[not attacker]["Ward"] = min(cstats[not attacker]["Normal Ward"], cstats[not attacker]["Parry"], cstats[not attacker]["Regen"])
     for g in roll_to_rule[a_type]["gen"]:
     #CAREFUL ">=" only works because the only comparisons are on hit (no "lt" needed)
         if gen and ((g["value"] and rules[attacker][g["rule"]][0].get() and r >= rules[attacker][g["rule"]][1].get()) or (not g["value"] and rules[attacker][g["rule"]].get() and result > 0)):
@@ -1212,6 +1224,8 @@ def fightRound(roundn, cstats, mstats):
                 else:
                     s[unit[0]]["To-Wound"] = cstats[unit[0]]["To-Wound"]
                     s[unit[0]]["Save"] = cstats[unit[0]]["Save"]
+                #Disable Parry
+                s[not unit[0]]["Ward"] = min(s[not unit[0]]["Regen"], s[not unit[0]]["Normal Ward"])
 
                 k = getWounds(unit[0], att, s, r)
             #Stomp and Thunderstomp
@@ -1223,7 +1237,9 @@ def fightRound(roundn, cstats, mstats):
                 s[unit[0]]["To-Hit"] = 1
                 s[unit[0]]["To-Wound"] = toWound(unit[0], strength, stats[not unit[0]]["T"].get(), r)
                 #for save, unit[0] is considered "defender" => use r so no armor piercing/ignore save
-                s[not unit[0]]["Save"] = saveTarget(not unit[0], stats[not unit[0]]["AS"].get(), strength, r)
+                s[not unit[0]]["Save"] = saveTarget(not unit[0], stats[not unit[0]]["AS"].get(), strength, r)  
+                #Disable Parry              
+                s[not unit[0]]["Ward"] = min(s[not unit[0]]["Regen"], s[not unit[0]]["Normal Ward"])
                 k = getWounds(unit[0], att, s, r)
                 
             orderAttacks[unit[0]] += att
@@ -1442,7 +1458,6 @@ def sim():
         combatResolutionG[i] = combatResolutionG[i]/(1 if roundReached[i] == 0 else roundReached[i])
         roundReached[i] = roundReached[i]/itercount*100
     maxCR = abs(max(combatResolutionG, key = abs))
-    print maxCR
     plt.subplot(321)
     plt.plot(axis0, alivePerRound[0], "b-", label = names[0])
     plt.plot(axis0, alivePerRound[1], "r-", label = names[1])
@@ -1724,14 +1739,15 @@ def ttip():
         ToolTip.createToolTip(ruleLabels[i]["Immune to Psychology"], "Only blocks Fear")
         ToolTip.createToolTip(ruleLabels[i]["Monstrous Support"], "Allows up to three support attacks per model")
         ToolTip.createToolTip(ruleLabels[i]["Mounted"], "Unlocks Mount tab and enables use of the mount profile\nMounts stats are ignored without this")
-        ToolTip.createToolTip(ruleLabels[i]["Stomp"], "Uses Mount strength if Mounted. Doesn't cancel parry save")
-        ToolTip.createToolTip(ruleLabels[i]["Thunderstomp"], "Uses Mount strength if Mounted. Doesn't cancel parry save")
+        ToolTip.createToolTip(ruleLabels[i]["Stomp"], "Uses Mount strength if Mounted")
+        ToolTip.createToolTip(ruleLabels[i]["Thunderstomp"], "Uses Mount strength if Mounted")
         ToolTip.createToolTip(ruleLabels[i]["Auto-wound"], "Emulates Poison. Value is the dice roll required to proc (usually 6)")
         ToolTip.createToolTip(ruleLabels[i]["Bonus Attack On Hit"], "E.g. Predation. Value is the dice roll required to proc")
         ToolTip.createToolTip(ruleLabels[i]["Bonus Hit On Hit"], "E.g. Nurgle Locus of Contagion. Value is the dice roll required to proc")
         ToolTip.createToolTip(ruleLabels[i]["Fear"], "Value is modifier applied to Fear test (usually 0)")
-        ToolTip.createToolTip(ruleLabels[i]["Fight in Extra Ranks"] , "Applies all the time, not only when not charging")
-        ToolTip.createToolTip(ruleLabels[i]["Killing Blow"], "Value is dice roll required to proc (usually 6). Doesn't cancel Regeneration")
+        ToolTip.createToolTip(ruleLabels[i]["Fight in Extra Ranks"] , "Applies all the time, not only when not charging (see 2nd Turn Extra Ranks)")
+        ToolTip.createToolTip(ruleLabels[i]["2nd Turn Extra Ranks"] , "Grants additional ranks of support attacks on every turn except the first")
+        ToolTip.createToolTip(ruleLabels[i]["Killing Blow"], "Value is dice roll required to proc (usually 6). Works on anything, disable manually against Monsters")
         ToolTip.createToolTip(ruleLabels[i]["Static CR"], "CR Bonus applied to every round e.g. Banner or BSB")
         ToolTip.createToolTip(ruleLabels[i]["To-Hit Penalty"], "Penalty applied when trying to hit this unit")
         ToolTip.createToolTip(ruleLabels[i]["To-Wound Penalty"], "Penalty applied when trying to wound this unti")
@@ -1744,6 +1760,8 @@ def ttip():
         ToolTip.createToolTip(ruleLabels[i]["Minimum To-Hit"], "Attacks will always hit with this score unless a lower value is needed (can be set to 1 to auto-hit)")
         ToolTip.createToolTip(ruleLabels[i]["Minimum To-Wound"], "Hits will always wound with this score unless a lower value is needed (can be set to 1 to auto-wound)")
         ToolTip.createToolTip(ruleLabels[i]["Attacks On Death"], "Extra attack when a unit dies. [Amount], [I]: is the attack immediately after death (or at end of round), [To-hit]: unit value if left 0, [S]: unit value if left 0")
+        ToolTip.createToolTip(ruleLabels[i]["Parry Save"], "This save will be used if it is better than the Ward stat. Cancelled against (Thunder)stomps and Impacts Hits (next best save is used instead)")
+        ToolTip.createToolTip(ruleLabels[i]["Regeneration"], "This save will be used if it is better than the Ward stat. Cancelled by Killing Blow (next best save is used instead)")
     #---------------------------------------------------
 
     
